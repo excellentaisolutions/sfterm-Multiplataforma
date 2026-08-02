@@ -112,7 +112,7 @@ Contratos iniciales:
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
-| 2. Terminal Windows | En curso | Matriz ConPTY PowerShell 5.1/7 con OSC, DSR, resize, Unicode, Ctrl+C y Ctrl+Break validada; agentes/TUI/IME pendientes |
+| 2. Terminal Windows | En curso | ConPTY 5.1/7, OSC, resize, Unicode, paste bracketed, Ctrl+C/Break e IME automatizado validados; agentes/TUI e IME manual pendientes |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
 | 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
@@ -242,8 +242,8 @@ Contratos iniciales:
   macOS. Las rutas con espacios/apóstrofes y prompts multilínea están cubiertos
   por tests. La detección de shims npm reconoce los paquetes oficiales de
   Claude y Codex en vez de reportar `node`, `cli` o `codex.js`.
-- Quedan por cerrar los bancos con Claude/Codex y otra TUI, las entradas
-  IME/pegado adversarial y la paridad visual del renderer de bloques.
+- Quedan por cerrar los bancos con Claude/Codex y otra TUI, una validación
+  manual con IME Windows instalado y la paridad visual del renderer de bloques.
 
 #### 2026-08-02 — Inicio de Fase 3
 
@@ -388,8 +388,26 @@ Contratos iniciales:
   dejó verdes los cuatro jobs, incluidos `cargo check`, Clippy estricto y 94
   tests Rust en Windows (92 superados, 2 ignorados, cero fallos).
 - Continúan pendientes para cerrar la Fase 2 los bancos con Claude/Codex y otra
-  TUI, IME/pegado adversarial y la paridad visual del renderer de bloques; no
-  se declara paridad completa antes de esa evidencia.
+  TUI, una validación manual con IME Windows instalado y la paridad visual del
+  renderer de bloques; no se declara paridad completa antes de esa evidencia.
+
+#### 2026-08-02 — IME y pegado adversarial de Fase 2
+
+- Se corrigió un defecto del renderer propio: `isComposing` se consultaba en el
+  `<textarea>`, aunque pertenece al `InputEvent`. Esto permitía enviar al PTY
+  preediciones parciales y después duplicar el texto confirmado.
+- `TerminalCompositionState` impide enviar estados intermedios, reserva la
+  tecla virtual 229 usada por Chromium/WebView2 y difiere el flush de
+  `compositionend` para cubrir el orden alternativo de WebKit. Las pruebas
+  reproducen ambas secuencias y composiciones consecutivas.
+- La normalización de pegado quedó en una función compartida y comprobada con
+  LF, CRLF, CR, caracteres combinados, emoji y CJK. La matriz nativa pega además
+  un bloque bracketed multilínea con `ñ_界` en PowerShell 5.1/7 sobre ConPTY.
+- [GitHub Actions #30763556317](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30763556317)
+  dejó verdes los cuatro jobs: 69/69 tests frontend y 94 tests Rust en Windows
+  (92 superados, 2 ignorados, cero fallos). La matriz ConPTY terminó en 5,64 s.
+- La automatización no sustituye una sesión manual con un IME Windows real;
+  esa evidencia permanece pendiente y queda diferenciada expresamente.
 
 ## 6. Fases de implementación
 
