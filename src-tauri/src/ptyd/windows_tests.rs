@@ -51,7 +51,23 @@ fn spawn_shell(client: &Client) -> (u32, u32) {
 }
 
 fn wait_for_occurrences(client: &Client, id: u32, marker: &str, count: usize) -> String {
-    let output = client.wait_data(id, 10_000, |text| text.matches(marker).count() >= count);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut output = String::new();
+    let mut answered_dsr = 0usize;
+    while Instant::now() < deadline {
+        output.push_str(&String::from_utf8_lossy(&client.take_data(id)));
+        if output.matches(marker).count() >= count {
+            break;
+        }
+        let requested_dsr = output.matches("\x1b[6n").count();
+        while answered_dsr < requested_dsr {
+            client
+                .write_bytes(id, b"\x1b[1;1R")
+                .expect("responder DSR de ConPTY");
+            answered_dsr += 1;
+        }
+        std::thread::sleep(Duration::from_millis(40));
+    }
     assert!(
         output.matches(marker).count() >= count,
         "la terminal no produjo {count} apariciones de {marker:?}: {output:?}"
@@ -81,10 +97,18 @@ fn child_pid_from(output: &str, marker: &str) -> Option<u32> {
 fn wait_for_child_pid(client: &Client, id: u32, marker: &str) -> (u32, String) {
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut output = String::new();
+    let mut answered_dsr = 0usize;
     while Instant::now() < deadline {
         output.push_str(&String::from_utf8_lossy(&client.take_data(id)));
         if let Some(pid) = child_pid_from(&output, marker) {
             return (pid, output);
+        }
+        let requested_dsr = output.matches("\x1b[6n").count();
+        while answered_dsr < requested_dsr {
+            client
+                .write_bytes(id, b"\x1b[1;1R")
+                .expect("responder DSR de ConPTY");
+            answered_dsr += 1;
         }
         std::thread::sleep(Duration::from_millis(40));
     }
