@@ -1428,6 +1428,7 @@ mod tests {
         captured: &mut String,
         answered_dsr: &mut usize,
     ) {
+        let prompt_occurrences_before = captured.matches("SFTERM_PROMPT_").count();
         write_conpty(writer, &format!("{command}\r"));
         let (target, resolved) = wait_conpty_foreground(
             shell_pid,
@@ -1463,8 +1464,16 @@ mod tests {
             );
         }
         assert!(
-            wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
-            "{expected_name} no devolvió el foreground a {engine}: {captured}"
+            read_conpty_until_occurrence(
+                output,
+                writer,
+                captured,
+                answered_dsr,
+                "SFTERM_PROMPT_",
+                prompt_occurrences_before + 1,
+                std::time::Duration::from_secs(8),
+            ),
+            "{expected_name} no restauró el prompt de {engine}: {captured}"
         );
 
         write_conpty(
@@ -1633,10 +1642,19 @@ mod tests {
             ),
             "{engine} no inició el workload de Ctrl+C: {out}"
         );
+        let prompt_occurrences_before_ctrl = out.matches("SFTERM_PROMPT_").count();
         write_conpty(writer.as_mut(), "\x03");
         assert!(
-            wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
-            "{engine} no recuperó el foreground después de Ctrl+C: {out}"
+            read_conpty_until_occurrence(
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+                "SFTERM_PROMPT_",
+                prompt_occurrences_before_ctrl + 1,
+                std::time::Duration::from_secs(8),
+            ),
+            "{engine} no restauró el prompt después de Ctrl+C: {out}"
         );
         write_conpty(writer.as_mut(), "Write-Output ($p + '_AFTER_CTRL_C')\r");
         assert!(
