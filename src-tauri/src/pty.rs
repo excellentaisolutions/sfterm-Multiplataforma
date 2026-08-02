@@ -1450,20 +1450,32 @@ mod tests {
             "{expected_name} terminó antes de estabilizar su TUI"
         );
 
+        *prompt_seq += 1;
+        let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
         if let Some(keys) = graceful_exit {
             write_conpty(writer, keys);
+            if !read_conpty_until(
+                output,
+                writer,
+                captured,
+                answered_dsr,
+                &prompt_marker,
+                std::time::Duration::from_millis(900),
+            ) {
+                // Claude pide expresamente un segundo Ctrl+C; otras TUIs no
+                // reciben esta repetición si ya devolvieron el prompt único.
+                write_conpty(writer, keys);
+            }
         } else {
             assert!(
                 windows_taskkill_tree(target),
                 "terminar el árbol de {expected_name} ({target})"
             );
+            assert!(
+                wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
+                "{expected_name} no devolvió el foreground a {engine}"
+            );
         }
-        assert!(
-            wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
-            "{expected_name} no devolvió el foreground a {engine}"
-        );
-        *prompt_seq += 1;
-        let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
         assert!(
             read_conpty_until(
                 output,
