@@ -1380,7 +1380,7 @@ mod tests {
             {
                 std::io::Write::write_all(
                     &mut writer,
-                    "Write-Output 'SFTERM_UTF8_ñ_界'; Write-Output ('SFTERM_ID=' + $env:SFTERM_TERM_ID); Write-Output 'SFTERM_INTERACTIVE_OK'; exit\r"
+                    "$p='SFTERM'; Write-Output ($p + '_UTF8_' + [char]0x00F1 + [char]0x754C); Write-Output ($p + '_ID=' + $env:SFTERM_TERM_ID); Write-Output ($p + '_INTERACTIVE_OK'); exit\r"
                         .as_bytes(),
                 )
                 .expect("escribir comando interactivo");
