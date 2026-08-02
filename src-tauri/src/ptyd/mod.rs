@@ -40,7 +40,8 @@ pub mod server;
 mod tests;
 pub mod transport;
 #[cfg(all(test, target_os = "windows"))]
-mod windows_tests;
+#[path = "windows_tests.rs"]
+mod windows_e2e_tests;
 
 use std::path::PathBuf;
 
