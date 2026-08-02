@@ -427,9 +427,9 @@ Contratos iniciales:
   una TUI en modo raw impide su cleanup y contaminaría artificialmente las
   pruebas siguientes. Después del banco cooperativo continúan verificándose
   Ctrl+C, Ctrl+Break, paste, Unicode, resize y salida del mismo shell.
-- [GitHub Actions #30764864951](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30764864951)
+- [GitHub Actions #30765179073](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30765179073)
   dejó verdes los cuatro jobs. Windows ejecutó 94 tests Rust (92 superados, 2
-  ignorados, cero fallos); la matriz ConPTY completa terminó en 9,93 s.
+  ignorados, cero fallos); la matriz ConPTY completa terminó en 8,85 s.
 - Para cerrar la Fase 2 solo permanecen la validación manual con un IME Windows
   instalado y la paridad visual del renderer propio de bloques.
 

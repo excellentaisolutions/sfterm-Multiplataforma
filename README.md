@@ -53,7 +53,7 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
 | CORE-008 | En el modo daemon predeterminado, Ctrl+Break no consultaba el proceso foreground y degradaba silenciosamente a Ctrl+C. | El bridge obtiene el PID foreground del daemon y aplica la misma terminación segura que el backend local, sin seleccionar nunca el shell ni los PID reservados 0/-1. | Prueba ConPTY real y test unitario verdes en Windows. |
 | CORE-009 | El renderer propio consultaba `isComposing` en el `<textarea>` en vez del `InputEvent`; un IME podía filtrar preediciones, duplicar el texto confirmado o adelantar Enter. | Estado de composición compartido, bloqueo de la tecla virtual 229 y flush diferido compatible con WebView2/WebKit. | Secuencias IME adversariales y paste bracketed multilínea/Unicode verdes. |
-| CORE-010 | La matriz ConPTY solo arrancaba PowerShell y no comprobaba launchers npm, alternate screen ni salida de agentes/TUI reales. | CI instala versiones fijadas de Claude/Codex y conduce ambos más Vim sin prompt ni consumo de API, exigiendo foreground estable, salida cooperativa, prompt restaurado y shell reutilizable. | Banco real verde en Windows limpio; matriz Rust completa en 9,93 s. |
+| CORE-010 | La matriz ConPTY solo arrancaba PowerShell y no comprobaba launchers npm, alternate screen ni salida de agentes/TUI reales. | CI instala versiones fijadas de Claude/Codex y conduce ambos más Vim sin prompt ni consumo de API, exigiendo foreground estable, salida cooperativa, prompt restaurado y shell reutilizable. | Banco real verde en Windows limpio; matriz Rust completa en 8,85 s. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -67,7 +67,7 @@ npm run test:rust
 ```
 
 La ejecución de referencia en una máquina limpia es
-[GitHub Actions #30764864951](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30764864951):
+[GitHub Actions #30765179073](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30765179073):
 los cuatro jobs de frontend y backend nativo finalizaron correctamente en
 `windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
 warnings como error y la suite Rust.
