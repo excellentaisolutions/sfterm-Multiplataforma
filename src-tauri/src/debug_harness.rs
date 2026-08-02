@@ -83,7 +83,7 @@ pub fn start(app: AppHandle) {
                                     // el JS envuelto SIEMPRE devuelve string
                                     (*(result as *mut NSString)).to_string()
                                 } else if !err.is_null() {
-                                    format!("error: {:?}", &*err)
+                                    format!("error: {:?}", *err)
                                 } else {
                                     "error: nil".into()
                                 };
@@ -147,7 +147,7 @@ pub fn snap_to(
                 let msg = if err.is_null() {
                     "snapshot nil".to_string()
                 } else {
-                    format!("snapshot error: {:?}", &*err)
+                    format!("snapshot error: {:?}", *err)
                 };
                 done3(Err(msg));
                 return;

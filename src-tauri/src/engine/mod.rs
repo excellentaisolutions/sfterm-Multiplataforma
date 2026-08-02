@@ -340,9 +340,8 @@ pub fn block_text_of(
     while abs <= end && physical < max {
         let row = term.grid.line_abs(abs);
         let wrapped = row.map(|r| r.wrapped).unwrap_or(false);
-        match row {
-            Some(r) => cur.push_str(&if wrapped { r.text_raw() } else { r.text() }),
-            None => {} // ya recortada del scrollback
+        if let Some(r) = row {
+            cur.push_str(&if wrapped { r.text_raw() } else { r.text() });
         }
         if !wrapped {
             lines.push(std::mem::take(&mut cur));

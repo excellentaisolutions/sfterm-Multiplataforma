@@ -508,9 +508,8 @@ impl Term {
 
     fn set_mode(&mut self, private: bool, code: u16, on: bool) {
         if !private {
-            match code {
-                4 => self.modes.insert = on,
-                _ => {}
+            if code == 4 {
+                self.modes.insert = on;
             }
             return;
         }
@@ -785,7 +784,7 @@ impl Perform for Term {
                 c.pending_wrap = false;
             }
             0x09 => self.tab_forward(1),
-            0x0a | 0x0b | 0x0c => self.grid.linefeed(template),
+            0x0a..=0x0c => self.grid.linefeed(template),
             0x0d => {
                 let c = &mut self.grid.screen_mut().cursor;
                 c.x = 0;
@@ -914,11 +913,9 @@ impl Perform for Term {
                     _ => {}
                 }
             }
-            633 => {
-                if params.get(1).map(|p| p == b"E").unwrap_or(false) {
-                    let cmd = join(2);
-                    self.blocks.on_cmd(cmd);
-                }
+            633 if params.get(1).map(|p| p == b"E").unwrap_or(false) => {
+                let cmd = join(2);
+                self.blocks.on_cmd(cmd);
             }
             _ => {}
         }
@@ -1150,12 +1147,10 @@ impl Perform for Term {
             }
             ('s', false) => self.save_cursor(),
             ('u', false) => self.restore_cursor(),
-            ('t', _) => {
+            ('t', _) if first(&items, 0, 0) == 18 => {
                 // window ops: solo reporte de tamaño en chars (18)
-                if first(&items, 0, 0) == 18 {
-                    let resp = format!("\x1b[8;{};{}t", self.grid.rows, self.grid.cols);
-                    self.respond(&resp);
-                }
+                let resp = format!("\x1b[8;{};{}t", self.grid.rows, self.grid.cols);
+                self.respond(&resp);
             }
             _ => {}
         }

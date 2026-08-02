@@ -205,6 +205,7 @@ fn executable_on_path(name: &str) -> bool {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Stable Tauri IPC command signature.
 pub fn pty_spawn(
     state: State<'_, PtyState>,
     engine_state: State<'_, crate::engine::EngineState>,
@@ -288,7 +289,7 @@ pub fn pty_spawn(
         pair.master.take_writer().map_err(|e| e.to_string())?,
     ));
     #[cfg(target_os = "macos")]
-    let raw_fd = pair.master.as_raw_fd().map(|fd| fd as i32);
+    let raw_fd = pair.master.as_raw_fd();
     #[cfg(target_os = "windows")]
     let raw_fd = None;
 
@@ -549,9 +550,9 @@ pub fn pty_detach_all(
     Ok(())
 }
 
-fn terminate_local_tree(shell_pid: u32, child: &mut Box<dyn Child + Send + Sync>) {
+fn terminate_local_tree(_shell_pid: u32, child: &mut Box<dyn Child + Send + Sync>) {
     #[cfg(target_os = "windows")]
-    if windows_taskkill_tree(shell_pid) {
+    if windows_taskkill_tree(_shell_pid) {
         return;
     }
 
@@ -769,7 +770,7 @@ pub fn term_session(
             // 40 y no 12: en este piso nacen sesiones de maquinaria todo el dia
             // y con 12 la conversacion vieja se caia de la lista antes de que
             // la miraramos. El tail de 64KB por candidato es barato (cache).
-            cands.sort_by(|a, b| b.0.cmp(&a.0));
+            cands.sort_by_key(|item| std::cmp::Reverse(item.0));
             for (_, p) in cands.into_iter().take(40) {
                 if last_ai_title(&p).as_deref().map(str::trim) != Some(wanted) {
                     continue;
@@ -1016,15 +1017,18 @@ fn is_generic_title(t: &str, cwd: &str) -> bool {
 /// atencion. Las locales responden con su fd; las del daemon en UN viaje
 /// batcheado (FgPgids) — el loop de metrics pregunta cada 1.5s y castigar al
 /// daemon con un roundtrip por terminal seria gratuito.
-pub fn foreground_pgids(state: &PtyState) -> Vec<(u32, u32, i32)> {
-    let (mut out, daemon_ids, local_ids): (
-        Vec<(u32, u32, i32)>,
-        Vec<(u32, u32)>,
-        Vec<(u32, u32, Option<i32>)>,
-    ) = {
+type ForegroundPgid = (u32, u32, i32);
+type DaemonPgid = (u32, u32);
+type LocalPgid = (u32, u32, Option<i32>);
+
+pub fn foreground_pgids(state: &PtyState) -> Vec<ForegroundPgid> {
+    let (mut out, daemon_ids, local_ids): (Vec<ForegroundPgid>, Vec<DaemonPgid>, Vec<LocalPgid>) = {
         let sessions = state.sessions.lock().unwrap();
         let mut ready = Vec::new();
+        #[cfg(target_os = "windows")]
         let mut locals = Vec::new();
+        #[cfg(target_os = "macos")]
+        let locals = Vec::new();
         let mut daemons = Vec::new();
         for (id, s) in sessions.iter() {
             match &s.backend {
@@ -1073,7 +1077,7 @@ pub fn foreground_pgids(state: &PtyState) -> Vec<(u32, u32, i32)> {
     out
 }
 
-fn local_foreground_process(raw_fd: Option<i32>, shell_pid: u32) -> i32 {
+fn local_foreground_process(raw_fd: Option<i32>, _shell_pid: u32) -> i32 {
     #[cfg(target_os = "macos")]
     {
         raw_fd
@@ -1084,10 +1088,10 @@ fn local_foreground_process(raw_fd: Option<i32>, shell_pid: u32) -> i32 {
     #[cfg(target_os = "windows")]
     {
         let _ = raw_fd;
-        windows_foreground_processes(&[shell_pid])
-            .get(&shell_pid)
+        windows_foreground_processes(&[_shell_pid])
+            .get(&_shell_pid)
             .copied()
-            .unwrap_or(shell_pid as i32)
+            .unwrap_or(_shell_pid as i32)
     }
 }
 

@@ -402,7 +402,7 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
         }
         Req::Shutdown => {
             let mut terms = hub.terms.lock().unwrap();
-            for (_, t) in terms.iter() {
+            for t in terms.values() {
                 kill_term_tree(t);
             }
             terms.clear();
@@ -518,7 +518,7 @@ fn spawn_term(
         pair.master.take_writer().map_err(|e| e.to_string())?,
     ));
     #[cfg(target_os = "macos")]
-    let raw_fd = pair.master.as_raw_fd().map(|fd| fd as i32);
+    let raw_fd = pair.master.as_raw_fd();
 
     let term = Arc::new(Term {
         id,

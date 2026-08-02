@@ -234,7 +234,7 @@ fn sync_state(repo: &Repository) -> GitSyncState {
         behind,
         has_remote,
         dirty,
-        head: head_oid.map(|o| short(o)),
+        head: head_oid.map(short),
     }
 }
 

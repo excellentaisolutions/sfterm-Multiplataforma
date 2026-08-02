@@ -15,6 +15,11 @@
 //! (spawn_blocking) — el main thread JAMAS se espera a si mismo. Los views
 //! viven en un thread_local del main thread (Retained<WKWebView> no es Send).
 
+#![allow(clippy::redundant_closure_call)]
+
+// The Objective-C bridges use small immediately-invoked Result closures so
+// `?` can report setup failures through the async channel.
+
 use objc2::rc::Retained;
 use objc2::{define_class, msg_send, MainThreadMarker, MainThreadOnly};
 use objc2_web_kit::WKWebView;
@@ -367,7 +372,7 @@ pub async fn browser_place(
             .unwrap_or(SNAP_FALLBACK);
         let app3 = app.clone();
         return run_main(app3, 10, move |tx| {
-            let _ = tx.send((|| unsafe {
+            let _ = tx.send((|| {
                 use objc2_foundation::{NSPoint, NSRect, NSSize};
                 with_view(id, |wk| {
                     wk.setFrame(NSRect::new(
@@ -567,7 +572,7 @@ pub async fn browser_eval(app: AppHandle, id: u32, js: String) -> Result<String,
                         // el wrapper SIEMPRE devuelve string
                         Ok((*(result as *mut NSString)).to_string())
                     } else if !err.is_null() {
-                        Err(format!("eval error: {:?}", &*err))
+                        Err(format!("eval error: {:?}", *err))
                     } else {
                         Err("eval nil".into())
                     };
@@ -666,7 +671,7 @@ unsafe fn png_write(
         return Err(if err.is_null() {
             "snapshot nil".to_string()
         } else {
-            format!("snapshot error: {:?}", &*err)
+            format!("snapshot error: {:?}", *err)
         });
     }
     let image: &NSImage = &*img;
@@ -842,7 +847,7 @@ pub async fn browser_pdf(app: AppHandle, id: u32, path: String) -> Result<String
                             return Err(if err.is_null() {
                                 "pdf nil".to_string()
                             } else {
-                                format!("pdf error: {:?}", &*err)
+                                format!("pdf error: {:?}", *err)
                             });
                         }
                         std::fs::write(&dest, (*data).to_vec())

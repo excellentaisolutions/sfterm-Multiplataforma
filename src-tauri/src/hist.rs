@@ -138,7 +138,7 @@ pub fn index(roots: &[PathBuf], days: f64, limit: usize) -> Vec<SessionCard> {
             }
         }
     }
-    files.sort_by(|a, b| b.0.cmp(&a.0));
+    files.sort_by_key(|item| std::cmp::Reverse(item.0));
 
     // 2) abrir SOLO hasta llenar la lista (los filtrados no cuentan)
     let mut out = Vec::with_capacity(limit.min(files.len()));
@@ -370,7 +370,7 @@ mod tests {
             ),
         );
 
-        let cards = index(&[root.clone()], 0.0, 50);
+        let cards = index(std::slice::from_ref(&root), 0.0, 50);
         assert_eq!(cards.len(), 1, "solo la real: {cards:?}");
         let c = &cards[0];
         assert_eq!(c.sid, "aaaaaaaa-1111-4111-8111-111111111111");
@@ -399,7 +399,7 @@ mod tests {
                 relleno(600)
             ),
         );
-        let cards = index(&[root.clone()], 0.0, 50);
+        let cards = index(std::slice::from_ref(&root), 0.0, 50);
         assert_eq!(cards.len(), 1);
         assert_eq!(
             cards[0].title.as_deref(),
@@ -420,7 +420,7 @@ mod tests {
                 relleno(600)
             ),
         );
-        let a = index(&[root.clone()], 0.0, 50);
+        let a = index(std::slice::from_ref(&root), 0.0, 50);
         assert_eq!(a[0].title.as_deref(), Some("primero"));
         // mismo mtime/size → veredicto cacheado aunque el contenido cambiara
         // (no debe pasar en la vida real; aqui prueba que el cache MANDA)
@@ -433,7 +433,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let b = index(&[root.clone()], 0.0, 50);
+        let b = index(std::slice::from_ref(&root), 0.0, 50);
         assert_eq!(b[0].title.as_deref(), Some("segundo prompt distinto"));
         let _ = std::fs::remove_dir_all(&root);
     }

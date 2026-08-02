@@ -104,6 +104,7 @@ pub fn migrate_legacy_layout() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(any(target_os = "windows", test))]
 fn migrate_legacy_layout_from(
     legacy: &std::path::Path,
     config: &std::path::Path,
@@ -127,6 +128,7 @@ fn migrate_legacy_layout_from(
     Ok(())
 }
 
+#[cfg(any(target_os = "windows", test))]
 fn move_without_overwrite(
     source: &std::path::Path,
     target: &std::path::Path,
@@ -712,13 +714,13 @@ pub fn config_set(entries: Vec<(String, serde_json::Value)>) -> Result<(), Strin
                 doc[k] = item;
             }
             [t, k] => {
-                if doc.get(*t).is_none() {
+                if doc.get(t).is_none() {
                     doc[*t] = toml_edit::table();
                 }
                 doc[*t][*k] = item;
             }
             [t, u, k] => {
-                if doc.get(*t).is_none() {
+                if doc.get(t).is_none() {
                     doc[*t] = toml_edit::table();
                 }
                 if doc[*t].get(*u).is_none() {
