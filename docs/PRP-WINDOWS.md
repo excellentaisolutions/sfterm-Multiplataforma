@@ -112,7 +112,7 @@ Contratos iniciales:
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
-| 2. Terminal Windows | En curso | ConPTY + integración PowerShell OSC validada; E2E pendiente |
+| 2. Terminal Windows | En curso | Matriz ConPTY PowerShell 5.1/7, OSC, DSR, resize y Unicode validada; agentes/TUI/IME pendientes |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
 | 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
@@ -364,6 +364,24 @@ Contratos iniciales:
   sistemas, ausencia automatizada de imports nativos en módulos neutrales y UI
   gobernada por `platform_capabilities`. La siguiente fase activa es el cierre
   E2E interactivo de ConPTY y PowerShell.
+
+#### 2026-08-02 — Matriz interactiva ConPTY de Fase 2
+
+- La prueba nativa dejó de ejecutar únicamente `powershell.exe -NonInteractive
+  -Command`: ahora abre sesiones `-NoExit` reales de Windows PowerShell 5.1 y
+  PowerShell 7 cuando está instalado.
+- El banco negocia todas las consultas DSR (`ESC[6n`), redimensiona el ConPTY,
+  escribe el comando por el master, conserva `ñ_界`, verifica que el proceso
+  hijo reciba `SFTERM_TERM_ID` y cierra mediante `exit`.
+- Se evitó un falso positivo propio de las PTY: PSReadLine refleja el input en
+  el mismo stream que el output, por lo que los sentinelas se construyen dentro
+  de PowerShell y nunca aparecen literalmente en la línea enviada.
+- [GitHub Actions #30762055911](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30762055911)
+  dejó verdes los cuatro jobs, incluidos `cargo check`, Clippy estricto y 93
+  tests Rust en Windows (91 superados, 2 ignorados, cero fallos).
+- Continúan pendientes para cerrar la Fase 2 los bancos con Claude/Codex y otra
+  TUI, IME/paste adversarial y la comprobación E2E visible de Ctrl+C y
+  Ctrl+Break; no se declara paridad completa antes de esa evidencia.
 
 ## 6. Fases de implementación
 
