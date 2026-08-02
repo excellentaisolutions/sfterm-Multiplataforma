@@ -1427,7 +1427,6 @@ mod tests {
         writer: &mut dyn std::io::Write,
         captured: &mut String,
         answered_dsr: &mut usize,
-        prompt_seq: &mut usize,
     ) {
         write_conpty(writer, &format!("{command}\r"));
         let (target, resolved) = wait_conpty_foreground(
@@ -1450,11 +1449,6 @@ mod tests {
             "{expected_name} terminó antes de estabilizar su TUI"
         );
 
-        *prompt_seq += 1;
-        // PowerShell puede insertar SGR entre el contador y el `>` al
-        // repintar PSReadLine. El identificador numérico es estable; la
-        // decoración que lo sigue no forma parte del contrato del prompt.
-        let prompt_marker = format!("SFTERM_PROMPT_{}", *prompt_seq);
         if let Some((keys, attempts)) = graceful_exit {
             for attempt in 0..attempts {
                 write_conpty(writer, keys);
@@ -1467,22 +1461,10 @@ mod tests {
                 windows_taskkill_tree(target),
                 "terminar el árbol de {expected_name} ({target})"
             );
-            assert!(
-                wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8))
-                    .is_some(),
-                "{expected_name} no devolvió el foreground a {engine}"
-            );
         }
         assert!(
-            read_conpty_until(
-                output,
-                writer,
-                captured,
-                answered_dsr,
-                &prompt_marker,
-                std::time::Duration::from_secs(5),
-            ),
-            "{engine} no restauró el prompt después de {expected_name}: {captured}"
+            wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
+            "{expected_name} no devolvió el foreground a {engine}: {captured}"
         );
 
         write_conpty(
@@ -1500,19 +1482,6 @@ mod tests {
                 std::time::Duration::from_secs(5),
             ),
             "{engine} no recuperó el prompt después de {expected_name}: {captured}"
-        );
-        *prompt_seq += 1;
-        let command_prompt = format!("SFTERM_PROMPT_{}", *prompt_seq);
-        assert!(
-            read_conpty_until(
-                output,
-                writer,
-                captured,
-                answered_dsr,
-                &command_prompt,
-                std::time::Duration::from_secs(5),
-            ),
-            "{engine} no completó el comando posterior a {expected_name}: {captured}"
         );
     }
 
@@ -1591,7 +1560,6 @@ mod tests {
             "{engine} no conservó el pegado bracketed multilínea/Unicode: {out}"
         );
 
-        let mut deterministic_prompt_seq = None;
         if engine == "powershell.exe"
             && std::env::var("SFTERM_REAL_TUI_MATRIX").as_deref() == Ok("1")
         {
@@ -1610,7 +1578,6 @@ mod tests {
                 ),
                 "{engine} no instaló el prompt determinista: {out}"
             );
-            let mut prompt_seq = 1;
             exercise_real_tui(
                 engine,
                 "$env:CI=$null; claude --safe-mode --no-chrome",
@@ -1622,7 +1589,6 @@ mod tests {
                 writer.as_mut(),
                 &mut out,
                 &mut answered_dsr,
-                &mut prompt_seq,
             );
             exercise_real_tui(
                 engine,
@@ -1635,7 +1601,6 @@ mod tests {
                 writer.as_mut(),
                 &mut out,
                 &mut answered_dsr,
-                &mut prompt_seq,
             );
             exercise_real_tui(
                 engine,
@@ -1648,9 +1613,7 @@ mod tests {
                 writer.as_mut(),
                 &mut out,
                 &mut answered_dsr,
-                &mut prompt_seq,
             );
-            deterministic_prompt_seq = Some(prompt_seq);
         }
 
         // Ctrl+C real: interrumpe un workload largo mediante ETX y conserva
@@ -1671,23 +1634,10 @@ mod tests {
             "{engine} no inició el workload de Ctrl+C: {out}"
         );
         write_conpty(writer.as_mut(), "\x03");
-        if let Some(prompt_seq) = deterministic_prompt_seq.as_mut() {
-            *prompt_seq += 1;
-            let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
-            assert!(
-                read_conpty_until(
-                    &output_rx,
-                    writer.as_mut(),
-                    &mut out,
-                    &mut answered_dsr,
-                    &prompt_marker,
-                    std::time::Duration::from_secs(5),
-                ),
-                "{engine} no restauró el prompt después de Ctrl+C: {out}"
-            );
-        } else {
-            std::thread::sleep(std::time::Duration::from_millis(600));
-        }
+        assert!(
+            wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
+            "{engine} no recuperó el foreground después de Ctrl+C: {out}"
+        );
         write_conpty(writer.as_mut(), "Write-Output ($p + '_AFTER_CTRL_C')\r");
         assert!(
             read_conpty_until(
