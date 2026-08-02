@@ -71,6 +71,9 @@ jobs:
       - run: npm run test:ptyd-primitives:windows
       - name: Install pinned agent CLIs for ConPTY smoke tests
         run: npm install --global @anthropic-ai/claude-code@2.1.220 @openai/codex@0.146.0
+      - name: Persistent daemon E2E
+        timeout-minutes: 3
+        run: npm run test:ptyd-e2e:windows
       - name: Cargo check
         timeout-minutes: 15
         run: cargo check --manifest-path src-tauri/Cargo.toml --locked
@@ -82,6 +85,3 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
         env:
           SFTERM_REAL_TUI_MATRIX: "1"
-      - name: Persistent daemon E2E
-        timeout-minutes: 10
-        run: npm run test:ptyd-e2e:windows

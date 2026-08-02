@@ -6,6 +6,14 @@ use crate::ptyd::proto::{Req, Res};
 use crate::ptyd::server;
 use std::time::{Duration, Instant};
 
+fn watchdog(test: &'static str) {
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(60));
+        eprintln!("WATCHDOG: {test} superó 60 segundos");
+        std::process::abort();
+    });
+}
+
 fn start_daemon(name: &str) -> Client {
     let pipe = format!(r"\\.\pipe\sfterm-e2e-{}-{name}", std::process::id());
     std::env::set_var("SFTERM_PTYD_PIPE", pipe);
@@ -85,7 +93,10 @@ fn wait_for_child_pid(client: &Client, id: u32, marker: &str) -> (u32, String) {
 #[test]
 #[ignore = "crea un daemon, un ConPTY y procesos Windows reales"]
 fn terminal_sobrevive_reconexion_y_conserva_pid_y_replay() {
+    watchdog("terminal_sobrevive_reconexion_y_conserva_pid_y_replay");
+    eprintln!("E2E survival: arrancando daemon");
     let app1 = start_daemon("survival");
+    eprintln!("E2E survival: creando ConPTY");
     let (id, shell_pid) = spawn_shell(&app1);
     app1.request(&Req::Attach { id }).expect("attach inicial");
     app1.write_str(id, "Write-Output 'SFTERM-E2E-ANTES'\r")
@@ -94,9 +105,11 @@ fn terminal_sobrevive_reconexion_y_conserva_pid_y_replay() {
     // PowerShell ejecutó el comando y produjo output.
     wait_for_occurrences(&app1, id, "SFTERM-E2E-ANTES", 2);
 
+    eprintln!("E2E survival: desconectando primer cliente");
     drop(app1);
     std::thread::sleep(Duration::from_millis(250));
 
+    eprintln!("E2E survival: conectando segundo cliente");
     let app2 = Client::connect("windows-e2e-reconnect").expect("reconectar");
     let terms = match app2.request(&Req::List).expect("listar terminales") {
         Res::List { terms } => terms,
@@ -108,6 +121,7 @@ fn terminal_sobrevive_reconexion_y_conserva_pid_y_replay() {
         .expect("terminal viva");
     assert_eq!(term.pid, shell_pid, "el shell cambió al reconectar la GUI");
 
+    eprintln!("E2E survival: reanudando terminal {id}");
     match app2
         .request(&Req::Attach { id })
         .expect("reanudar terminal")
@@ -119,13 +133,18 @@ fn terminal_sobrevive_reconexion_y_conserva_pid_y_replay() {
     app2.write_str(id, "Write-Output 'SFTERM-E2E-DESPUES'\r")
         .expect("escribir tras reconectar");
     wait_for_occurrences(&app2, id, "SFTERM-E2E-DESPUES", 2);
+    eprintln!("E2E survival: cerrando terminal");
     app2.request(&Req::Kill { id }).expect("cerrar terminal");
+    eprintln!("E2E survival: OK");
 }
 
 #[test]
 #[ignore = "crea un daemon, un ConPTY y procesos Windows reales"]
 fn close_elimina_shell_y_descendiente_sin_huerfanos() {
+    watchdog("close_elimina_shell_y_descendiente_sin_huerfanos");
+    eprintln!("E2E tree: arrancando daemon");
     let app = start_daemon("process-tree");
+    eprintln!("E2E tree: creando ConPTY");
     let (id, shell_pid) = spawn_shell(&app);
     app.request(&Req::Attach { id }).expect("attach");
 
@@ -135,6 +154,7 @@ fn close_elimina_shell_y_descendiente_sin_huerfanos() {
         + "Write-Output ('SFTERM-CHILD-' + $p.Id)\r";
     app.write_str(id, &command).expect("crear descendiente");
     let (child_pid, _output) = wait_for_child_pid(&app, id, "SFTERM-CHILD-");
+    eprintln!("E2E tree: shell={shell_pid}, child={child_pid}");
     assert!(process_is_alive(shell_pid));
     assert!(process_is_alive(child_pid));
 
@@ -149,4 +169,5 @@ fn close_elimina_shell_y_descendiente_sin_huerfanos() {
         !process_is_alive(child_pid),
         "el descendiente quedó huérfano"
     );
+    eprintln!("E2E tree: OK");
 }
