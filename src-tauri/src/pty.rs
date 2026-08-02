@@ -1423,6 +1423,25 @@ mod tests {
             std::time::Duration::from_secs(2),
         );
 
+        // Pegado real: PSReadLine recibe un bloque bracketed multilínea con
+        // Unicode directo. El Enter queda fuera del bracket para que el TUI no
+        // confunda los saltos internos con envíos independientes.
+        write_conpty(
+            writer.as_mut(),
+            "\x1b[200~$p='SFTERM'; $pasteLines = @(\r'uno'\r'ñ_界'\r'tres'\r); Write-Output ($p + '_PASTE_' + ($pasteLines -join '|'))\x1b[201~\r",
+        );
+        assert!(
+            read_conpty_until(
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+                "SFTERM_PASTE_uno|ñ_界|tres",
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} no conservó el pegado bracketed multilínea/Unicode: {out}"
+        );
+
         // Ctrl+C real: interrumpe un workload largo mediante ETX y conserva
         // el mismo PowerShell para ejecutar el comando siguiente.
         write_conpty(

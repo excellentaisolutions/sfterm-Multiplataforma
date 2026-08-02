@@ -12,6 +12,7 @@
 import * as ipc from "./ipc";
 // LINKS VIVOS (F2): las regex viven en links.ts (compartidas con term.ts)
 import { URL_RE, scanCandidates } from "./links";
+import { TerminalCompositionState, terminalPastePayload } from "./terminal-input";
 import type { AppConfig, Theme } from "./types";
 
 const BOLD = 1, DIM = 2, ITALIC = 4, UNDERLINE = 8, INVERSE = 16, STRIKE = 32,
@@ -86,6 +87,7 @@ export class OwnTermView {
   private wheelAcc = 0;
   private disposed = false;
   private ro: ResizeObserver | null = null;
+  private composition = new TerminalCompositionState();
 
   // seleccion en coords absolutas (fila abs, columna)
   private sel: { aAbs: number; aCol: number; bAbs: number; bCol: number } | null = null;
@@ -512,6 +514,12 @@ export class OwnTermView {
     const input = this.input;
     input.addEventListener("keydown", (e) => {
       if (e.defaultPrevented) return; // atajo de app (window capture ya actuo)
+      // WebView2/Chromium usa keyCode 229 durante la selección IME. Dejar que
+      // el sistema lo consuma evita convertir la confirmación en Enter/bytes VT.
+      if (this.composition.ownsKeydown(e.isComposing, e.keyCode)) return;
+      // compositionend puede preceder al input final. Si ya hay texto estable,
+      // enviarlo antes de una tecla de control conserva el orden texto→Enter.
+      this.flushInputValue();
       if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === "Pause" || e.key === "Cancel")) {
         e.preventDefault();
         void ipc.ptyInterrupt(this.id, true);
@@ -564,20 +572,21 @@ export class OwnTermView {
         void ipc.ptyWrite(this.id, bytes);
       }
     });
-    input.addEventListener("input", () => {
-      if ((input as unknown as { isComposing?: boolean }).isComposing) return;
-      const v = input.value;
-      if (v) {
-        input.value = "";
-        this.clearSelection();
-        if (this.viewportOffset > 0) void this.scrollTo(0);
-        void ipc.ptyWrite(this.id, v);
+    input.addEventListener("compositionstart", () => {
+      this.composition.start();
+    });
+    input.addEventListener("input", (e) => {
+      if (this.composition.input(input.value, e.isComposing) !== null) {
+        this.flushInputValue();
       }
     });
-    input.addEventListener("compositionend", (e) => {
-      const v = (e as CompositionEvent).data;
-      input.value = "";
-      if (v) void ipc.ptyWrite(this.id, v);
+    input.addEventListener("compositionend", () => {
+      this.composition.end();
+      // Chromium y WebKit no coinciden en si el valor final está disponible
+      // antes o después de compositionend; el siguiente task cubre ambos.
+      setTimeout(() => {
+        if (this.composition.input(input.value) !== null) this.flushInputValue();
+      }, 0);
     });
     // CAMINO UNICO del pegado (incluido ⌘V, que ya no se intercepta): el
     // sistema entrega el contenido YA en el evento, sin lectura programatica
@@ -600,6 +609,15 @@ export class OwnTermView {
       if (this.modes & M_FOCUS) void ipc.ptyWrite(this.id, "\x1b[O");
       this.queueRender();
     });
+  }
+
+  private flushInputValue() {
+    const value = this.composition.input(this.input.value);
+    if (value === null) return;
+    this.input.value = "";
+    this.clearSelection();
+    if (this.viewportOffset > 0) void this.scrollTo(0);
+    void ipc.ptyWrite(this.id, value);
   }
 
   /** teclas de control → bytes VT. null = dejar que el input event lo maneje
@@ -680,9 +698,8 @@ export class OwnTermView {
   }
 
   paste(text: string) {
-    const t = text.replace(/\r?\n/g, "\r");
     const bracketed = (this.modes & M_BRACKETED) !== 0;
-    const payload = bracketed ? `\x1b[200~${t}\x1b[201~` : t;
+    const payload = terminalPastePayload(text, bracketed);
     if (this.viewportOffset > 0) void this.scrollTo(0);
     void ipc.ptyWrite(this.id, payload);
   }
