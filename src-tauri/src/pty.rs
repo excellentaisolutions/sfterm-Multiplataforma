@@ -65,7 +65,7 @@ pub fn expand_tilde(p: &str) -> String {
             return home.to_string_lossy().to_string();
         }
     }
-    if let Some(rest) = p.strip_prefix("~/") {
+    if let Some(rest) = p.strip_prefix("~/").or_else(|| p.strip_prefix("~\\")) {
         if let Some(home) = dirs::home_dir() {
             return home.join(rest).to_string_lossy().to_string();
         }
@@ -86,10 +86,24 @@ pub fn build_shell_command(
     colorfgbg: Option<String>,
     term_id: u32,
 ) -> (CommandBuilder, String) {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let shell = default_shell();
     let mut cmd = CommandBuilder::new(&shell);
     // login + interactive: lee .zprofile y .zshrc del usuario
+    #[cfg(target_os = "macos")]
     cmd.args(["-l", "-i"]);
+    #[cfg(target_os = "windows")]
+    if shell.to_ascii_lowercase().contains("powershell")
+        || shell.to_ascii_lowercase().contains("pwsh")
+    {
+        cmd.arg("-NoLogo");
+        if shell_integration.unwrap_or(true) {
+            let profile = crate::engine::shell_dir().join("sfterm-profile.ps1");
+            if profile.is_file() {
+                cmd.args(["-NoExit", "-ExecutionPolicy", "Bypass", "-File"]);
+                cmd.arg(profile);
+            }
+        }
+    }
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     cmd.env("TERM_PROGRAM", "SFTerm");
@@ -114,11 +128,12 @@ pub fn build_shell_command(
     // claude entero — el hijo escribia su sesion en OTRO projects/ y el chat
     // jamas la encontraba ("hola" respondido pero invisible).
     for (key, _) in std::env::vars() {
-        if key == "CLAUDECODE"
-            || key == "CLAUDE_EFFORT"
-            || key == "CLAUDE_CONFIG_DIR"
-            || key == "CLAUDE_PID"
-            || key.starts_with("CLAUDE_CODE_")
+        let normalized = key.to_ascii_uppercase();
+        if normalized == "CLAUDECODE"
+            || normalized == "CLAUDE_EFFORT"
+            || normalized == "CLAUDE_CONFIG_DIR"
+            || normalized == "CLAUDE_PID"
+            || normalized.starts_with("CLAUDE_CODE_")
         {
             cmd.env_remove(&key);
         }
@@ -131,8 +146,8 @@ pub fn build_shell_command(
     if let Some(v) = colorfgbg {
         cmd.env("COLORFGBG", v);
     }
-    // shell integration (OSC 133/633/7): ZDOTDIR inyectado, estilo VSCode.
-    // Solo para zsh; el .zshrc inyectado sourcea el arbol real del usuario.
+    // shell integration macOS (OSC 133/633/7): ZDOTDIR inyectado, estilo VSCode.
+    // En Windows se inyecta arriba como -File, sin modificar $PROFILE.
     if shell_integration.unwrap_or(true) && shell.ends_with("zsh") {
         let inject = crate::engine::shell_dir();
         if inject.join(".zshrc").exists() {
@@ -150,6 +165,36 @@ pub fn build_shell_command(
         cmd.cwd(&cwd_final);
     }
     (cmd, cwd_final)
+}
+
+fn default_shell() -> String {
+    if let Ok(shell) = std::env::var("SFTERM_SHELL") {
+        if !shell.trim().is_empty() {
+            return shell;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into())
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        for candidate in ["pwsh.exe", "powershell.exe"] {
+            if executable_on_path(candidate) {
+                return candidate.into();
+            }
+        }
+        std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn executable_on_path(name: &str) -> bool {
+    std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(name).is_file()))
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -232,7 +277,10 @@ pub fn pty_spawn(
     let writer: SharedWriter = Arc::new(Mutex::new(
         pair.master.take_writer().map_err(|e| e.to_string())?,
     ));
+    #[cfg(target_os = "macos")]
     let raw_fd = pair.master.as_raw_fd().map(|fd| fd as i32);
+    #[cfg(target_os = "windows")]
+    let raw_fd = None;
 
     // Engine: el parser VT vive en Rust y parsea SIEMPRE (tee), con cualquier
     // renderer. Da titulos/bloques/cwd/gate semantico + frames al renderer propio.
@@ -289,11 +337,11 @@ pub fn pty_spawn(
 
 /// Teclea el comando inicial (preset / nueva conversacion) sobre el shell,
 /// asi cuando el comando termina queda el shell vivo debajo.
-/// ESPERAR el primer prompt REAL (OSC 133;A del zshrc inyectado) antes de
+/// ESPERAR el primer prompt REAL (OSC 133;A de la integracion de shell) antes de
 /// teclear: el sleep fijo de 300ms perdia la carrera contra zshrc pesados
 /// (p10k) y el init se tragaba el comando — cuerpos que quedaban en zsh
 /// pelado, conversaciones mudas (bug real 18 jul). Fallback 6s si el shell
-/// no emite OSC (integration off / no-zsh). Funciona identico con PTY local o
+/// no emite OSC (integration off / shell no soportado). Funciona identico con PTY local o
 /// del daemon: el engine (tee) y el writer son los mismos en ambos caminos.
 fn inject_initial_command(
     engine_state: &crate::engine::EngineState,
@@ -323,7 +371,7 @@ fn inject_initial_command(
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
-        // margen: el prompt ya pinto pero zsh sigue armando bindings
+        // margen: el prompt ya pinto pero el shell sigue armando bindings
         std::thread::sleep(std::time::Duration::from_millis(if prompt_listo { 150 } else { 300 }));
         if let Ok(mut w) = w.lock() {
             let _ = w.write_all(format!(" {}\r", cmdline.trim()).as_bytes());
@@ -341,6 +389,42 @@ pub fn pty_write(state: State<'_, PtyState>, id: u32, data: String) -> Result<()
     let mut w = writer.lock().map_err(|_| "writer poisoned")?;
     w.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
     w.flush().map_err(|e| e.to_string())
+}
+
+/// Interrumpe el workload conservando el shell. La vía normal escribe ETX y
+/// deja que ConPTY/Unix PTY entregue Ctrl+C. La vía `force` implementa
+/// Ctrl+Break en Windows terminando solo el árbol foreground; si todavía no
+/// hay workload se degrada al ETX normal y nunca mata el shell por accidente.
+#[tauri::command]
+pub fn pty_interrupt(state: State<'_, PtyState>, id: u32, force: bool) -> Result<(), String> {
+    let (writer, shell_pid, local) = {
+        let sessions = state.sessions.lock().unwrap();
+        let session = sessions.get(&id).ok_or("no such pty")?;
+        (
+            session.writer.clone(),
+            session.shell_pid,
+            matches!(&session.backend, PtyBackend::Local { .. }),
+        )
+    };
+
+    #[cfg(target_os = "windows")]
+    if force && local {
+        let foreground = local_foreground_process(None, shell_pid);
+        if foreground > 0 && foreground as u32 != shell_pid {
+            return if windows_taskkill_tree(foreground as u32) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "no se pudo interrumpir el árbol foreground {foreground}"
+                ))
+            };
+        }
+    }
+
+    let _ = (force, local, shell_pid);
+    let mut writer = writer.lock().map_err(|_| "writer poisoned")?;
+    writer.write_all(&[0x03]).map_err(|e| e.to_string())?;
+    writer.flush().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -377,11 +461,12 @@ pub fn pty_kill(
     id: u32,
 ) -> Result<(), String> {
     crate::engine::remove(&engine_state, id);
-    let mut sessions = state.sessions.lock().unwrap();
-    if let Some(mut s) = sessions.remove(&id) {
+    let session = state.sessions.lock().unwrap().remove(&id);
+    if let Some(mut s) = session {
+        let shell_pid = s.shell_pid;
         match &mut s.backend {
             PtyBackend::Local { child, .. } => {
-                let _ = child.kill();
+                terminate_local_tree(shell_pid, child);
             }
             PtyBackend::Daemon => crate::ptyd_bridge::kill(id),
         }
@@ -400,13 +485,16 @@ pub fn pty_kill_all(
     engine_state: State<'_, crate::engine::EngineState>,
 ) -> Result<(), String> {
     crate::engine::remove_all(&engine_state);
-    let mut sessions = state.sessions.lock().unwrap();
-    for (_, s) in sessions.iter_mut() {
+    let mut sessions: Vec<PtySession> = {
+        let mut guard = state.sessions.lock().unwrap();
+        guard.drain().map(|(_, session)| session).collect()
+    };
+    for s in sessions.iter_mut() {
+        let shell_pid = s.shell_pid;
         if let PtyBackend::Local { child, .. } = &mut s.backend {
-            let _ = child.kill();
+            terminate_local_tree(shell_pid, child);
         }
     }
-    sessions.clear();
     Ok(())
 }
 
@@ -430,17 +518,48 @@ pub fn pty_detach_all(
     state: State<'_, PtyState>,
     engine_state: State<'_, crate::engine::EngineState>,
 ) -> Result<(), String> {
-    let mut sessions = state.sessions.lock().unwrap();
-    for (id, s) in sessions.drain() {
+    let sessions: Vec<(u32, PtySession)> = state.sessions.lock().unwrap().drain().collect();
+    for (id, s) in sessions {
+        let shell_pid = s.shell_pid;
         match s.backend {
             PtyBackend::Daemon => crate::ptyd_bridge::detach(id),
             PtyBackend::Local { mut child, .. } => {
-                let _ = child.kill();
+                terminate_local_tree(shell_pid, &mut child);
             }
         }
         crate::engine::remove(&engine_state, id);
     }
     Ok(())
+}
+
+fn terminate_local_tree(shell_pid: u32, child: &mut Box<dyn Child + Send + Sync>) {
+    #[cfg(target_os = "windows")]
+    if windows_taskkill_tree(shell_pid) {
+        return;
+    }
+
+    let _ = child.kill();
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn windows_taskkill_tree(pid: u32) -> bool {
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    if pid == 0 || pid == std::process::id() {
+        return false;
+    }
+    let pid_arg = pid.to_string();
+    Command::new("taskkill.exe")
+        .args(["/PID", pid_arg.as_str(), "/T", "/F"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
 }
 
 /// Re-engancha una terminal VIVA del daemon como sesion de esta app: mismo
@@ -512,9 +631,9 @@ pub fn term_session(
         let sessions = state.sessions.lock().unwrap();
         let s = sessions.get(&id).ok_or("no such pty")?;
         match &s.backend {
-            PtyBackend::Local { raw_fd, .. } => raw_fd
-                .map(|fd| unsafe { libc::tcgetpgrp(fd) })
-                .unwrap_or(-1),
+            PtyBackend::Local { raw_fd, .. } => {
+                local_foreground_process(*raw_fd, s.shell_pid)
+            }
             // el fd del master vive en el daemon: se le pregunta a el
             PtyBackend::Daemon => crate::ptyd_bridge::fg_pgid(id),
         }
@@ -550,11 +669,7 @@ pub fn term_session(
     // el claude puede correr bajo OTRO config dir (bro: CLAUDE_CONFIG_DIR=
     // ~/.claude-bro) — su jsonl vive ahi, no en ~/.claude (leccion "hola
     // invisible" 17 jul: adivinar el root cruza sesiones de cuentas)
-    let cfg_env: Option<std::path::PathBuf> = proc.environ().iter().find_map(|kv| {
-        kv.to_string_lossy()
-            .strip_prefix("CLAUDE_CONFIG_DIR=")
-            .map(std::path::PathBuf::from)
-    });
+    let cfg_env = process_env_value(proc.environ(), "CLAUDE_CONFIG_DIR").map(std::path::PathBuf::from);
     let claude_root = cfg_env
         .clone()
         .or_else(|| dirs::home_dir().map(|h| h.join(".claude")));
@@ -675,6 +790,14 @@ pub fn term_session(
         sid,
         how,
     }))
+}
+
+fn process_env_value(environment: &[std::ffi::OsString], wanted: &str) -> Option<String> {
+    environment.iter().find_map(|entry| {
+        let text = entry.to_string_lossy();
+        let (name, value) = text.split_once('=')?;
+        name.eq_ignore_ascii_case(wanted).then(|| value.to_string())
+    })
 }
 
 /// El jsonl NACIDO en la ventana de arranque de este claude ([start-5s,
@@ -877,21 +1000,42 @@ fn is_generic_title(t: &str, cwd: &str) -> bool {
 /// batcheado (FgPgids) — el loop de metrics pregunta cada 1.5s y castigar al
 /// daemon con un roundtrip por terminal seria gratuito.
 pub fn foreground_pgids(state: &PtyState) -> Vec<(u32, u32, i32)> {
-    let (mut out, daemon_ids): (Vec<(u32, u32, i32)>, Vec<(u32, u32)>) = {
+    let (mut out, daemon_ids, local_ids): (
+        Vec<(u32, u32, i32)>,
+        Vec<(u32, u32)>,
+        Vec<(u32, u32, Option<i32>)>,
+    ) = {
         let sessions = state.sessions.lock().unwrap();
+        let mut ready = Vec::new();
         let mut locals = Vec::new();
         let mut daemons = Vec::new();
         for (id, s) in sessions.iter() {
             match &s.backend {
                 PtyBackend::Local { raw_fd, .. } => {
-                    let fg = raw_fd.map(|fd| unsafe { libc::tcgetpgrp(fd) }).unwrap_or(-1);
-                    locals.push((*id, s.shell_pid, fg as i32));
+                    #[cfg(target_os = "macos")]
+                    ready.push((
+                        *id,
+                        s.shell_pid,
+                        local_foreground_process(*raw_fd, s.shell_pid),
+                    ));
+                    #[cfg(target_os = "windows")]
+                    locals.push((*id, s.shell_pid, *raw_fd));
                 }
                 PtyBackend::Daemon => daemons.push((*id, s.shell_pid)),
             }
         }
-        (locals, daemons)
+        (ready, daemons, locals)
     };
+    #[cfg(target_os = "windows")]
+    {
+        let shell_pids: Vec<u32> = local_ids.iter().map(|(_, shell_pid, _)| *shell_pid).collect();
+        let foreground = windows_foreground_processes(&shell_pids);
+        out.extend(local_ids.into_iter().map(|(id, shell_pid, _)| {
+            (id, shell_pid, foreground.get(&shell_pid).copied().unwrap_or(shell_pid as i32))
+        }));
+    }
+    #[cfg(target_os = "macos")]
+    let _ = local_ids;
     if !daemon_ids.is_empty() {
         let ids: Vec<u32> = daemon_ids.iter().map(|(id, _)| *id).collect();
         let map = crate::ptyd_bridge::fg_pgids(&ids);
@@ -902,16 +1046,156 @@ pub fn foreground_pgids(state: &PtyState) -> Vec<(u32, u32, i32)> {
     out
 }
 
+fn local_foreground_process(raw_fd: Option<i32>, shell_pid: u32) -> i32 {
+    #[cfg(target_os = "macos")]
+    {
+        raw_fd
+            .map(|fd| unsafe { libc::tcgetpgrp(fd) })
+            .unwrap_or(-1)
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let _ = raw_fd;
+        windows_foreground_processes(&[shell_pid])
+            .get(&shell_pid)
+            .copied()
+            .unwrap_or(shell_pid as i32)
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone, Debug)]
+struct WindowsProcessNode {
+    pid: u32,
+    parent: Option<u32>,
+    start_time: u64,
+    name: String,
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn windows_foreground_processes(shell_pids: &[u32]) -> HashMap<u32, i32> {
+    let mut sys = sysinfo::System::new_all();
+    sys.refresh_all();
+    let nodes: Vec<WindowsProcessNode> = sys
+        .processes()
+        .iter()
+        .map(|(pid, process)| WindowsProcessNode {
+            pid: pid.as_u32(),
+            parent: process.parent().map(|parent| parent.as_u32()),
+            start_time: process.start_time(),
+            name: process.name().to_string_lossy().to_string(),
+        })
+        .collect();
+
+    shell_pids
+        .iter()
+        .map(|shell_pid| {
+            (*shell_pid, select_windows_foreground(*shell_pid, &nodes) as i32)
+        })
+        .collect()
+}
+
+#[cfg(target_os = "windows")]
+fn select_windows_foreground(shell_pid: u32, nodes: &[WindowsProcessNode]) -> u32 {
+    let mut current = shell_pid;
+    loop {
+        let Some(child) = nodes
+            .iter()
+            .filter(|node| node.parent == Some(current))
+            .max_by_key(|node| (node.start_time, node.pid))
+        else {
+            return current;
+        };
+
+        current = child.pid;
+        let name = child
+            .name
+            .strip_suffix(".exe")
+            .unwrap_or(&child.name)
+            .to_ascii_lowercase();
+        if !matches!(name.as_str(), "cmd" | "conhost" | "openconsole") {
+            return current;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn expand_tilde_home() {
-        let home = dirs::home_dir().unwrap().to_string_lossy().to_string();
-        assert_eq!(expand_tilde("~"), home);
-        assert_eq!(expand_tilde("~/Developer"), format!("{home}/Developer"));
-        assert_eq!(expand_tilde("/tmp/x"), "/tmp/x");
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(expand_tilde("~"), home.to_string_lossy());
+        assert_eq!(
+            expand_tilde("~/Developer"),
+            home.join("Developer").to_string_lossy()
+        );
+        assert_eq!(
+            expand_tilde("~\\Developer"),
+            home.join("Developer").to_string_lossy()
+        );
+        assert_eq!(expand_tilde("ruta/sin/tilde"), "ruta/sin/tilde");
+    }
+
+    #[test]
+    fn variables_de_proceso_son_case_insensitive_en_windows() {
+        let environment = vec![
+            std::ffi::OsString::from("Path=C:\\Windows"),
+            std::ffi::OsString::from("Claude_Config_Dir=C:\\Users\\Iris\\.claude-work"),
+        ];
+        assert_eq!(
+            process_env_value(&environment, "CLAUDE_CONFIG_DIR").as_deref(),
+            Some("C:\\Users\\Iris\\.claude-work")
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn foreground_windows_colapsa_launcher_cmd_y_no_entra_en_hijos_del_agente() {
+        let nodes = vec![
+            WindowsProcessNode {
+                pid: 20,
+                parent: Some(10),
+                start_time: 100,
+                name: "cmd.exe".into(),
+            },
+            WindowsProcessNode {
+                pid: 30,
+                parent: Some(20),
+                start_time: 101,
+                name: "node.exe".into(),
+            },
+            WindowsProcessNode {
+                pid: 40,
+                parent: Some(30),
+                start_time: 102,
+                name: "git.exe".into(),
+            },
+        ];
+        assert_eq!(select_windows_foreground(10, &nodes), 30);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn foreground_windows_prefiere_el_hijo_activo_mas_reciente() {
+        let nodes = vec![
+            WindowsProcessNode {
+                pid: 20,
+                parent: Some(10),
+                start_time: 100,
+                name: "old.exe".into(),
+            },
+            WindowsProcessNode {
+                pid: 30,
+                parent: Some(10),
+                start_time: 200,
+                name: "codex.exe".into(),
+            },
+        ];
+        assert_eq!(select_windows_foreground(10, &nodes), 30);
+        assert_eq!(select_windows_foreground(99, &nodes), 99);
     }
 
     /// El hijo tiene que PODER LEER quien es. No basta con que el codigo
@@ -919,6 +1203,7 @@ mod tests {
     /// estamparia mal sus comandos del gate y actuaria sobre el navegador de
     /// OTRA conversacion — un fallo silencioso y muy caro de diagnosticar.
     /// Por eso se comprueba contra un PTY REAL, no contra el CommandBuilder.
+    #[cfg(target_os = "macos")]
     #[test]
     fn el_hijo_sabe_que_terminal_es() {
         let (cmd_builder, _) = build_shell_command(Some("/tmp".into()), Some(false), None, 42);
@@ -954,6 +1239,7 @@ mod tests {
         assert!(out.contains("ID=[42]"), "salida real del PTY: {out}");
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn spawn_real_pty_echo() {
         // PTY real: zsh corre, escribe, responde. El corazon del producto.
@@ -976,6 +1262,44 @@ mod tests {
         }
         let _ = child.wait();
         assert!(out.contains("SFTERM_OK_42"), "salida real del PTY: {out}");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn spawn_real_conpty_powershell_echo() {
+        let pty_system = native_pty_system();
+        let pair = pty_system
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("open ConPTY");
+        let mut cmd = CommandBuilder::new("powershell.exe");
+        cmd.args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Write-Output SFTERM_WINDOWS_OK",
+        ]);
+        let mut child = pair.slave.spawn_command(cmd).expect("spawn PowerShell");
+        drop(pair.slave);
+        let mut reader = pair.master.try_clone_reader().expect("reader");
+        let mut out = String::new();
+        let mut buf = [0u8; 4096];
+        loop {
+            match std::io::Read::read(&mut reader, &mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => out.push_str(&String::from_utf8_lossy(&buf[..n])),
+            }
+        }
+        let _ = child.wait();
+        assert!(
+            out.contains("SFTERM_WINDOWS_OK"),
+            "salida real de ConPTY: {out}"
+        );
     }
 }
 

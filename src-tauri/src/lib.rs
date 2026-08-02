@@ -1,9 +1,25 @@
 mod attach;
+#[cfg(target_os = "macos")]
 mod browser;
+#[cfg(target_os = "windows")]
+#[path = "platform/windows/browser.rs"]
+mod browser;
+#[cfg(target_os = "macos")]
+mod browser_delegate;
+#[cfg(target_os = "windows")]
+#[path = "platform/windows/browser_delegate.rs"]
 mod browser_delegate;
 mod checkpoints;
 mod config;
+#[cfg(target_os = "macos")]
 mod debug_harness;
+#[cfg(target_os = "windows")]
+#[path = "platform/windows/debug_harness.rs"]
+mod debug_harness;
+#[cfg(target_os = "macos")]
+mod voice;
+#[cfg(target_os = "windows")]
+#[path = "platform/windows/voice.rs"]
 mod voice;
 mod engine;
 mod events;
@@ -67,6 +83,7 @@ pub fn run() {
             app_relaunch,
             pty::pty_spawn,
             pty::pty_write,
+            pty::pty_interrupt,
             pty::pty_resize,
             pty::pty_kill,
             pty::pty_kill_all,
@@ -91,6 +108,7 @@ pub fn run() {
             fsx::fs_list_dir,
             fsx::fs_read_file,
             fsx::fs_home_dir,
+            fsx::fs_temp_path,
             fsx::fs_index,
             fsx::fs_search,
             fsx::fs_watch_root,
@@ -141,6 +159,7 @@ pub fn run() {
             voice::voice_cancel,
         ])
         .setup(|app| {
+            config::migrate_legacy_layout().map_err(std::io::Error::other)?;
             config::start_config_watcher(app.handle().clone());
             metrics::start_metrics_loop(app.handle().clone());
             debug_harness::start(app.handle().clone());

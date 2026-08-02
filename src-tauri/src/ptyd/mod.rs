@@ -32,9 +32,12 @@
 //!   vivas es exactamente lo que queremos que exista.
 
 pub mod client;
+#[cfg(target_os = "windows")]
+pub mod job;
 pub mod proto;
 pub mod server;
-#[cfg(test)]
+pub mod transport;
+#[cfg(all(test, target_os = "macos"))]
 mod tests;
 
 use std::path::PathBuf;
@@ -43,7 +46,7 @@ fn base_dir() -> PathBuf {
     // Deriva del config_dir de la app (respeta SFTERM_CONFIG_DIR): un banco de
     // pruebas con config propio gana automaticamente daemon propio — socket y
     // log incluidos — sin rozar el que tiene las conversaciones reales.
-    let d = crate::config::config_dir();
+    let d = crate::config::state_dir();
     let _ = std::fs::create_dir_all(&d);
     d
 }
@@ -59,6 +62,49 @@ pub fn socket_path() -> PathBuf {
         }
     }
     base_dir().join("ptyd.sock")
+}
+
+#[cfg(target_os = "windows")]
+pub fn pipe_name() -> String {
+    if let Ok(name) = std::env::var("SFTERM_PTYD_PIPE") {
+        if name.starts_with(r"\\.\pipe\") {
+            return name;
+        }
+    }
+    let key = base_dir().to_string_lossy().to_lowercase();
+    let hash = key
+        .bytes()
+        .fold(0xcbf29ce484222325u64, |hash, byte| {
+            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+        });
+    format!(
+        r"\\.\pipe\sfterm-ptyd-{}-{hash:016x}",
+        windows_session_id()
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn windows_session_id() -> u32 {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn ProcessIdToSessionId(process_id: u32, session_id: *mut u32) -> i32;
+    }
+    let mut session = u32::MAX;
+    if unsafe { ProcessIdToSessionId(std::process::id(), &mut session) } == 0 {
+        u32::MAX
+    } else {
+        session
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests {
+    #[test]
+    fn pipe_aislada_por_config_y_override_validado() {
+        let name = super::pipe_name();
+        assert!(name.starts_with(r"\\.\pipe\sfterm-ptyd-"));
+        assert!(!name.contains('/') && !name.contains(':'));
+    }
 }
 
 pub fn log_path() -> PathBuf {

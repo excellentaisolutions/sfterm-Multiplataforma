@@ -690,6 +690,40 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).to_string()
 }
 
+fn osc_cwd_path(uri: &str) -> String {
+    let Some(rest) = uri.strip_prefix("file://") else {
+        return uri.to_string();
+    };
+
+    let mut path = if rest.starts_with('/') {
+        percent_decode(rest)
+    } else if let Some((host, tail)) = rest.split_once('/') {
+        #[cfg(target_os = "windows")]
+        {
+            format!("//{host}/{}", percent_decode(tail))
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = host;
+            format!("/{}", percent_decode(tail))
+        }
+    } else {
+        percent_decode(rest)
+    };
+
+    // file:///C:/... es la forma canónica que emite PowerShell para drives.
+    // El slash inicial pertenece al URI, no al path Win32.
+    if path.len() >= 4
+        && path.as_bytes()[0] == b'/'
+        && path.as_bytes()[1].is_ascii_alphabetic()
+        && path.as_bytes()[2] == b':'
+        && path.as_bytes()[3] == b'/'
+    {
+        path.remove(0);
+    }
+    path
+}
+
 impl Perform for Term {
     fn print(&mut self, c: char) {
         self.put_char(c);
@@ -782,14 +816,7 @@ impl Perform for Term {
             }
             7 => {
                 let uri = join(1);
-                // file://host/path
-                let path = uri
-                    .strip_prefix("file://")
-                    .map(|rest| {
-                        let slash = rest.find('/').unwrap_or(0);
-                        percent_decode(&rest[slash..])
-                    })
-                    .unwrap_or(uri);
+                let path = osc_cwd_path(&uri);
                 if path != self.cwd {
                     self.cwd = path.clone();
                     self.events.push(TermEvent::Cwd(path));

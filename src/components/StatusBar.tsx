@@ -1,4 +1,5 @@
 import { useStore } from "../core/store";
+import { pathBasename } from "../core/path-utils";
 
 export default function StatusBar() {
   const git = useStore((s) => s.git);
@@ -8,7 +9,7 @@ export default function StatusBar() {
   const treeRoot = useStore((s) => s.treeRoot);
 
   const count = Object.keys(panels).length;
-  const rootName = treeRoot.split("/").filter(Boolean).pop() ?? "";
+  const rootName = pathBasename(treeRoot);
 
   return (
     <div id="statusbar">

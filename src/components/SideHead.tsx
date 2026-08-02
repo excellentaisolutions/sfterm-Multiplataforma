@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../core/store";
 import * as actions from "../core/actions";
 import { recentRoots } from "../core/actions";
+import { pathBasename } from "../core/path-utils";
 
 function IconFiles({ active }: { active: boolean }) {
   return (
@@ -45,7 +46,7 @@ export default function SideHead() {
   const [picker, setPicker] = useState(false);
   const headRef = useRef<HTMLDivElement>(null);
 
-  const rootName = treeRoot.split("/").filter(Boolean).pop() ?? "";
+  const rootName = pathBasename(treeRoot);
   const setView = (v: "files" | "scm") => {
     useStore.getState().set({ sideView: v });
     localStorage.setItem("sfterm-side-view", v);
@@ -79,7 +80,7 @@ export default function SideHead() {
   }
   for (const r of recentRoots()) {
     if (!known.some((k) => k.root.replace(/^~/, "") === r.replace(/^~/, "") || k.root === r)) {
-      known.push({ label: r.split("/").filter(Boolean).pop() ?? r, root: r, kind: "reciente" });
+      known.push({ label: pathBasename(r) || r, root: r, kind: "reciente" });
     }
   }
 

@@ -3,6 +3,7 @@ import { useStore } from "../core/store";
 import * as actions from "../core/actions";
 import * as ipc from "../core/ipc";
 import { iconForFile } from "../core/icons";
+import { pathBasename } from "../core/path-utils";
 
 interface Hit {
   path: string;
@@ -77,7 +78,7 @@ export default function SearchPanel() {
         />
         <div className="overlay-list">
           {hits.map((h, i) => {
-            const name = h.path.split("/").pop() ?? h.path;
+            const name = pathBasename(h.path) || h.path;
             return (
               <div
                 key={`${h.path}:${h.line}:${i}`}

@@ -12,6 +12,7 @@ import type {
   PanelMeta,
   Theme,
 } from "./types";
+import { pathBasename } from "./path-utils";
 
 interface UIState {
   palette: boolean;
@@ -198,7 +199,7 @@ export function panelTitle(p: PanelMeta): string {
   if (p.customTitle) return p.customTitle;
   // titulo OSC solo si dice algo: el default de zsh ("user@host:path") es ruido
   if (p.title && !/^[\w.-]+@[\w.-]+\s*:/.test(p.title)) return p.title;
-  const folder = p.cwd ? (p.cwd.split("/").filter(Boolean).pop() ?? "") : "";
+  const folder = p.cwd ? pathBasename(p.cwd) : "";
   const proc = p.fgName && p.fgName !== "zsh" && p.fgName !== "-zsh" ? p.fgName : "";
   if (proc && folder) return `${proc} · ${folder}`;
   if (folder) return folder;

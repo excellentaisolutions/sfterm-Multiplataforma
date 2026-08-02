@@ -7,8 +7,8 @@ pub struct ConfigState {
     pub watcher: Mutex<Option<RecommendedWatcher>>,
 }
 
-/// Raiz de TODO el estado de maquina de la app: config.toml, gate/, session.json,
-/// adjuntos/, commits/, shell/ y el socket del daemon ptyd derivan de aqui.
+/// Configuración editable por el usuario. En Windows vive en AppData/Roaming;
+/// el estado ligado a la máquina se separa en `state_dir` (AppData/Local).
 ///
 /// `SFTERM_CONFIG_DIR` la redirige COMPLETA. Existe por el banco de pruebas:
 /// una instancia aislada (dev o E2E) necesita su propio gate y su propio daemon
@@ -19,21 +19,168 @@ pub fn config_dir() -> PathBuf {
     config_dir_from(std::env::var("SFTERM_CONFIG_DIR").ok().as_deref())
 }
 
+fn override_dir(override_value: Option<&str>) -> Option<PathBuf> {
+    let value = override_value?.trim();
+    (!value.is_empty()).then(|| PathBuf::from(crate::pty::expand_tilde(value)))
+}
+
 pub fn config_dir_from(override_dir: Option<&str>) -> PathBuf {
-    if let Some(p) = override_dir {
-        let p = p.trim();
-        if !p.is_empty() {
-            return PathBuf::from(crate::pty::expand_tilde(p));
-        }
+    if let Some(path) = self::override_dir(override_dir) {
+        return path;
     }
-    dirs::home_dir()
-        .unwrap_or_default()
-        .join(".config")
-        .join("sfterm")
+    #[cfg(target_os = "windows")]
+    {
+        dirs::config_dir()
+            .or_else(dirs::home_dir)
+            .unwrap_or_default()
+            .join("SFTerm")
+    }
+    #[cfg(target_os = "macos")]
+    {
+        dirs::home_dir()
+            .unwrap_or_default()
+            .join(".config")
+            .join("sfterm")
+    }
+}
+
+/// Estado persistente pero específico de esta máquina: sesión, adjuntos,
+/// gate, logs y runtime. El override de pruebas conserva una sola raíz.
+pub fn state_dir() -> PathBuf {
+    if let Some(path) = override_dir(std::env::var("SFTERM_CONFIG_DIR").ok().as_deref()) {
+        return path;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        dirs::data_local_dir()
+            .or_else(dirs::config_dir)
+            .or_else(dirs::home_dir)
+            .unwrap_or_default()
+            .join("SFTerm")
+    }
+    #[cfg(target_os = "macos")]
+    {
+        config_dir()
+    }
+}
+
+/// Artefactos regenerables: perfiles inyectados y documentos de preview.
+pub fn cache_dir() -> PathBuf {
+    if override_dir(std::env::var("SFTERM_CONFIG_DIR").ok().as_deref()).is_some() {
+        return state_dir();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        state_dir().join("cache")
+    }
+    #[cfg(target_os = "macos")]
+    {
+        config_dir()
+    }
 }
 
 pub fn config_file() -> PathBuf {
     config_dir().join("config.toml")
+}
+
+/// Migra la disposición Windows provisional (`~/.config/sfterm`) sin
+/// sobrescribir destinos. `rename` evita duplicar; si cruza volúmenes se copia,
+/// se verifica el tamaño y solo entonces se elimina el origen.
+#[cfg(target_os = "windows")]
+pub fn migrate_legacy_layout() -> Result<(), String> {
+    if override_dir(std::env::var("SFTERM_CONFIG_DIR").ok().as_deref()).is_some() {
+        return Ok(());
+    }
+    let legacy = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".config")
+        .join("sfterm");
+    migrate_legacy_layout_from(&legacy, &config_dir(), &state_dir(), &cache_dir())
+        .map_err(|error| format!("migración de {legacy:?}: {error}"))
+}
+
+#[cfg(target_os = "macos")]
+pub fn migrate_legacy_layout() -> Result<(), String> {
+    Ok(())
+}
+
+fn migrate_legacy_layout_from(
+    legacy: &std::path::Path,
+    config: &std::path::Path,
+    state: &std::path::Path,
+    cache: &std::path::Path,
+) -> std::io::Result<()> {
+    if !legacy.is_dir() || legacy == config || legacy == state {
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(legacy)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let target_root = match name.to_string_lossy().as_ref() {
+            "config.toml" | "nervio.env" => config,
+            "shell" | "commits" => cache,
+            _ => state,
+        };
+        move_without_overwrite(&entry.path(), &target_root.join(&name))?;
+    }
+    let _ = std::fs::remove_dir(legacy);
+    Ok(())
+}
+
+fn move_without_overwrite(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+    let metadata = std::fs::symlink_metadata(source)?;
+    if metadata.file_type().is_symlink() {
+        return Err(std::io::Error::other(format!(
+            "no se migra el enlace simbólico {}",
+            source.display()
+        )));
+    }
+    if metadata.is_dir() {
+        std::fs::create_dir_all(target)?;
+        for child in std::fs::read_dir(source)? {
+            let child = child?;
+            move_without_overwrite(&child.path(), &target.join(child.file_name()))?;
+        }
+        let _ = std::fs::remove_dir(source);
+        return Ok(());
+    }
+    if target.exists() {
+        return Ok(());
+    }
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    if std::fs::rename(source, target).is_ok() {
+        return Ok(());
+    }
+    let mut input = std::fs::File::open(source)?;
+    let mut output = std::fs::OpenOptions::new().write(true).create_new(true).open(target)?;
+    let copied = match std::io::copy(&mut input, &mut output) {
+        Ok(copied) => copied,
+        Err(error) => {
+            drop(output);
+            let _ = std::fs::remove_file(target);
+            return Err(error);
+        }
+    };
+    if let Err(error) = output.sync_all() {
+        drop(output);
+        let _ = std::fs::remove_file(target);
+        return Err(error);
+    }
+    drop(output);
+    let target_len = match std::fs::metadata(target) {
+        Ok(target_metadata) => target_metadata.len(),
+        Err(error) => {
+            let _ = std::fs::remove_file(target);
+            return Err(error);
+        }
+    };
+    if copied != metadata.len() || target_len != metadata.len() {
+        let _ = std::fs::remove_file(target);
+        return Err(std::io::Error::other("copia de migración incompleta"));
+    }
+    std::fs::remove_file(source)
 }
 
 #[cfg(test)]
@@ -46,14 +193,44 @@ mod config_dir_tests {
     #[test]
     fn redireccion_del_config_dir() {
         let home = dirs::home_dir().unwrap();
-        assert_eq!(config_dir_from(None), home.join(".config").join("sfterm"));
-        assert_eq!(config_dir_from(Some("")), home.join(".config").join("sfterm"));
-        assert_eq!(config_dir_from(Some("   ")), home.join(".config").join("sfterm"));
+        #[cfg(target_os = "windows")]
+        let expected = dirs::config_dir().unwrap().join("SFTerm");
+        #[cfg(target_os = "macos")]
+        let expected = home.join(".config").join("sfterm");
+        assert_eq!(config_dir_from(None), expected);
+        assert_eq!(config_dir_from(Some("")), expected);
+        assert_eq!(config_dir_from(Some("   ")), expected);
         assert_eq!(
             config_dir_from(Some("/tmp/sfterm-bench")),
             std::path::PathBuf::from("/tmp/sfterm-bench")
         );
         assert_eq!(config_dir_from(Some("~/bench-sfterm")), home.join("bench-sfterm"));
+    }
+
+    #[test]
+    fn migracion_no_sobrescribe_y_separa_estado_de_cache() {
+        let root = std::env::temp_dir().join(format!("sfterm-layout-{}", std::process::id()));
+        let legacy = root.join("legacy");
+        let config = root.join("roaming");
+        let state = root.join("local");
+        let cache = state.join("cache");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(legacy.join("gate")).unwrap();
+        std::fs::create_dir_all(legacy.join("shell")).unwrap();
+        std::fs::create_dir_all(&config).unwrap();
+        std::fs::write(legacy.join("config.toml"), "legacy").unwrap();
+        std::fs::write(config.join("config.toml"), "nuevo").unwrap();
+        std::fs::write(legacy.join("session.json"), "{}").unwrap();
+        std::fs::write(legacy.join("gate").join("events.jsonl"), "evento").unwrap();
+        std::fs::write(legacy.join("shell").join("profile.ps1"), "perfil").unwrap();
+
+        super::migrate_legacy_layout_from(&legacy, &config, &state, &cache).unwrap();
+        assert_eq!(std::fs::read_to_string(config.join("config.toml")).unwrap(), "nuevo");
+        assert_eq!(std::fs::read_to_string(legacy.join("config.toml")).unwrap(), "legacy");
+        assert!(state.join("session.json").is_file());
+        assert!(state.join("gate").join("events.jsonl").is_file());
+        assert!(cache.join("shell").join("profile.ps1").is_file());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
 
@@ -88,7 +265,7 @@ daemon = true
 home = "terminals"
 # Scrollback por terminal (lineas)
 scrollback = 8000
-# Shell integration (zsh): bloques comando+output (OSC 133), cwd en vivo (OSC 7).
+# Shell integration (zsh/PowerShell): bloques comando+output (OSC 133), cwd en vivo (OSC 7).
 # Alimenta los badges de bloques, el gate semantico y el re-run
 shell_integration = true
 # CLIs agenticos que el LECTOR (⌃Tab / ⌘L) reconoce. Se matchea en minusculas

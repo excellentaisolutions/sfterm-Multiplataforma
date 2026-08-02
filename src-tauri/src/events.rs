@@ -5,7 +5,7 @@
 //! (bloques que terminan con exit/duracion, terminales que piden atencion,
 //! vida/muerte de shells) en un JSONL append-only:
 //!
-//!   ~/.config/sfterm/gate/events.jsonl
+//!   <state-dir>/SFTerm/gate/events.jsonl
 //!
 //! Los agentes lo leen DIRECTO del archivo (gate.py events) — sin round-trip
 //! por la puerta, y la historia sobrevive aunque la app se cierre. El puente

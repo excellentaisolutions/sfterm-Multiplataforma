@@ -125,7 +125,7 @@ export default function Settings() {
                 title="Abrir en el visor"
                 onClick={async () => { close(); actions.openFileTab(await ipc.configPath()); }}
               >
-                ~/.config/sfterm/config.toml
+                Abrir config.toml
               </code>
               <span>— también puedes pedírselo a tu agente.</span>
             </div>

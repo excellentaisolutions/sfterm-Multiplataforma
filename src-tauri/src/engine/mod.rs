@@ -479,12 +479,13 @@ pub fn engine_set_theme(
     Ok(())
 }
 
-// ---------- shell integration (zsh, estilo VSCode: ZDOTDIR inyectado) ----------
+// ---------- shell integration (zsh / PowerShell, aislada por proceso) ----------
 
 pub fn shell_dir() -> std::path::PathBuf {
-    crate::config::config_dir().join("shell")
+    crate::config::cache_dir().join("shell")
 }
 
+#[cfg(target_os = "macos")]
 const ZSHENV: &str = r#"# SFTerm shell integration (auto-generado en cada arranque; no editar)
 if [[ -z "$SFTERM_USER_ZDOTDIR" ]]; then
   export SFTERM_USER_ZDOTDIR="$HOME"
@@ -500,18 +501,21 @@ else
 fi
 "#;
 
+#[cfg(target_os = "macos")]
 const ZPROFILE: &str = r#"# SFTerm shell integration (auto-generado; no editar)
 _sfterm_z="$ZDOTDIR"; ZDOTDIR="$SFTERM_USER_ZDOTDIR"
 [[ -f "$ZDOTDIR/.zprofile" ]] && builtin source "$ZDOTDIR/.zprofile"
 ZDOTDIR="$_sfterm_z"; unset _sfterm_z
 "#;
 
+#[cfg(target_os = "macos")]
 const ZLOGIN: &str = r#"# SFTerm shell integration (auto-generado; no editar)
 _sfterm_z="$ZDOTDIR"; ZDOTDIR="$SFTERM_USER_ZDOTDIR"
 [[ -f "$ZDOTDIR/.zlogin" ]] && builtin source "$ZDOTDIR/.zlogin"
 ZDOTDIR="$_sfterm_z"; unset _sfterm_z
 "#;
 
+#[cfg(target_os = "macos")]
 const ZSHRC: &str = r#"# SFTerm shell integration (auto-generado; no editar)
 _sfterm_z="$ZDOTDIR"; ZDOTDIR="$SFTERM_USER_ZDOTDIR"
 [[ -f "$ZDOTDIR/.zshrc" ]] && builtin source "$ZDOTDIR/.zshrc"
@@ -547,7 +551,12 @@ if [[ "$TERM_PROGRAM" == "SFTerm" && -z "$SFTERM_SI_LOADED" ]]; then
 fi
 "#;
 
+#[cfg(target_os = "windows")]
+const POWERSHELL_PROFILE: &str =
+    include_str!("../../resources/shell/sfterm-profile.ps1");
+
 /// Escribe los archivos de integracion (cada arranque: siempre frescos).
+#[cfg(target_os = "macos")]
 pub fn write_shell_files() {
     let dir = shell_dir();
     if std::fs::create_dir_all(&dir).is_err() {
@@ -557,6 +566,15 @@ pub fn write_shell_files() {
     let _ = std::fs::write(dir.join(".zprofile"), ZPROFILE);
     let _ = std::fs::write(dir.join(".zlogin"), ZLOGIN);
     let _ = std::fs::write(dir.join(".zshrc"), ZSHRC);
+}
+
+#[cfg(target_os = "windows")]
+pub fn write_shell_files() {
+    let dir = shell_dir();
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let _ = std::fs::write(dir.join("sfterm-profile.ps1"), POWERSHELL_PROFILE);
 }
 
 /// Vuelca las respuestas del engine al writer del PTY (helper del reader thread).

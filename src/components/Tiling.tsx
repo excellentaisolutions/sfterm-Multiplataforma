@@ -10,6 +10,7 @@ import BrowserView from "./BrowserView";
 import FileView from "./FileView";
 import Logo from "./Logo";
 import { parseDroppedPaths, type DragSrc, type DropHint, type DropRegion, type Rect } from "../core/types";
+import { fileManagerLabel, pathBasename } from "../core/path-utils";
 
 const TAB_H = 30;
 const GAP = 8;
@@ -391,7 +392,7 @@ export default function Tiling() {
   const renderActions = (leaf: T.LeafNode) => {
     const act = T.activeTab(leaf);
     if (!act || act.kind !== "file") return <div className="leaf-actions" />;
-    const name = act.path.split("/").pop() ?? "";
+    const name = pathBasename(act.path);
     const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
     const isMd = (ext === "md" || ext === "markdown") && act.mode !== "diff";
     const relPath = act.path.startsWith(treeRoot + "/") ? act.path.slice(treeRoot.length + 1) : act.path;
@@ -420,7 +421,7 @@ export default function Tiling() {
         )}
         <button
           className="leaf-action-btn"
-          title="Revelar en Finder"
+          title={`Revelar en ${fileManagerLabel()}`}
           onClick={() => void ipc.revealInFinder(act.path)}
         >
           <IconReveal />
@@ -452,7 +453,7 @@ export default function Tiling() {
             label = m?.title || host || "navegador";
             icon = <IconGlobe />;
           } else {
-            const name = tab.path.split("/").pop() ?? tab.path;
+            const name = pathBasename(tab.path) || tab.path;
             label = tab.mode === "diff" ? `${name} (diff)` : name;
             icon = <img className="ficon" src={iconForFile(name)} alt="" draggable={false} />;
           }

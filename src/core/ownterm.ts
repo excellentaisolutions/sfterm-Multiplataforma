@@ -512,6 +512,11 @@ export class OwnTermView {
     const input = this.input;
     input.addEventListener("keydown", (e) => {
       if (e.defaultPrevented) return; // atajo de app (window capture ya actuo)
+      if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === "Pause" || e.key === "Cancel")) {
+        e.preventDefault();
+        void ipc.ptyInterrupt(this.id, true);
+        return;
+      }
       // copy de la seleccion propia (canvas no tiene seleccion DOM)
       if (e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === "c" && this.sel) {
         e.preventDefault();

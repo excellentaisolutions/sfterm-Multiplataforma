@@ -27,11 +27,11 @@
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-/// Carpeta de los adjuntos pegados. En ~/.config/sfterm (no en temp): el
+/// Carpeta persistente de adjuntos. En Windows usa AppData/Local (no temp): el
 /// asset protocol solo sirve $HOME (asi el thumbnail se puede pintar) y la
 /// ruta sigue viva tras un reboot — el transcript la referencia para siempre.
 fn attach_dir() -> PathBuf {
-    crate::config::config_dir().join("adjuntos")
+    crate::config::state_dir().join("adjuntos")
 }
 
 /// Guarda un adjunto pegado (imagen del clipboard) y devuelve su ruta.

@@ -104,6 +104,9 @@ export const sessionsIndex = (days?: number, limit?: number) =>
 export const ptyWrite = (id: number, data: string) =>
   invoke<void>("pty_write", { id, data });
 
+export const ptyInterrupt = (id: number, force = false) =>
+  invoke<void>("pty_interrupt", { id, force });
+
 export const ptyResize = (id: number, cols: number, rows: number) =>
   invoke<void>("pty_resize", { id, cols, rows });
 
@@ -167,6 +170,7 @@ export const fsReadFile = (path: string, maxBytes?: number) =>
     maxBytes: maxBytes ?? null,
   });
 export const fsHomeDir = () => invoke<string>("fs_home_dir");
+export const fsTempPath = (name: string) => invoke<string>("fs_temp_path", { name });
 export const fsIndex = (root: string) => invoke<string[]>("fs_index", { root });
 export const fsSearch = (root: string, q: string, max?: number) =>
   invoke<{ path: string; line: number; preview: string }[]>("fs_search", {
@@ -194,7 +198,7 @@ export const fsResolveToken = (token: string, cwd: string) =>
   );
 
 /** ADJUNTOS del lector (26 jul 2026). `attachSave` materializa una imagen
- *  pegada a ~/.config/sfterm/adjuntos y devuelve su ruta (viaja al agente como
+ *  pegada al directorio de datos local de SFTerm y devuelve su ruta (viaja al agente como
  *  ruta, no como base64 — ver attach.rs). `transcriptImage` saca bajo demanda
  *  una imagen que YA vive dentro de un transcript, que readTail stripea antes
  *  de cruzar el IPC; devuelve un data URI listo para <img src>. */

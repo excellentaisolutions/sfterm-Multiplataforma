@@ -11,6 +11,7 @@ import { useStore } from "../core/store";
 import * as actions from "../core/actions";
 import { layoutGraph, type GraphRow } from "../core/gitgraph";
 import { iconForFile } from "../core/icons";
+import { pathBasename, pathDirname } from "../core/path-utils";
 import type { GitCommitInfo } from "../core/types";
 
 /** tiempo relativo compacto ("ahora", "5m", "3h", "2d") */
@@ -207,14 +208,12 @@ export default function SourceControl() {
                       donde el ojo barre para encontrar un archivo. */}
                   <img
                     className="ficon"
-                    src={iconForFile(relPath.split("/").pop() ?? relPath)}
+                    src={iconForFile(pathBasename(relPath))}
                     alt=""
                     draggable={false}
                   />
-                  <span className="scm-file">{relPath.split("/").pop()}</span>
-                  <span className="scm-dir">
-                    {relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : ""}
-                  </span>
+                  <span className="scm-file">{pathBasename(relPath)}</span>
+                  <span className="scm-dir">{pathDirname(relPath)}</span>
                   <span className="scm-code" style={{ color: CODE_COLOR[code] ?? "var(--dim)" }}>
                     {code}
                   </span>

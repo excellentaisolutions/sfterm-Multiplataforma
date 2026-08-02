@@ -92,11 +92,34 @@ pub fn fs_home_dir() -> String {
     dirs::home_dir().unwrap_or_default().to_string_lossy().to_string()
 }
 
+/// Destino temporal multiplataforma para defaults del gate/browser. Solo
+/// acepta un nombre de archivo, nunca una ruta aportada por el usuario.
+#[tauri::command]
+pub fn fs_temp_path(name: String) -> Result<String, String> {
+    if name.is_empty()
+        || name.len() > 120
+        || name == "."
+        || name == ".."
+        || !name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_'))
+    {
+        return Err("nombre temporal inválido".into());
+    }
+    Ok(std::env::temp_dir().join(name).to_string_lossy().to_string())
+}
+
 #[tauri::command]
 pub fn reveal_in_finder(path: String) -> Result<(), String> {
     let path = crate::pty::expand_tilde(&path);
+    #[cfg(target_os = "macos")]
     std::process::Command::new("open")
         .args(["-R", &path])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer.exe")
+        .args(["/select,", &path])
         .spawn()
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -182,9 +205,33 @@ fn trash_item(path: &str) -> Result<(), String> {
         .map_err(|e| e.localizedDescription().to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
-fn trash_item(_path: &str) -> Result<(), String> {
-    Err("papelera solo implementada en macOS".into())
+#[cfg(target_os = "windows")]
+fn trash_item(path: &str) -> Result<(), String> {
+    const SCRIPT: &str = r#"
+Add-Type -AssemblyName Microsoft.VisualBasic
+$p = $env:SFTERM_TRASH_PATH
+if ([System.IO.Directory]::Exists($p)) {
+  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
+    $p,
+    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+} else {
+  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
+    $p,
+    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+}
+"#;
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", SCRIPT])
+        .env("SFTERM_TRASH_PATH", path)
+        .output()
+        .map_err(|error| error.to_string())?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -258,7 +305,13 @@ pub fn open_url(url: String) -> Result<(), String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err("solo http(s)".into());
     }
+    #[cfg(target_os = "macos")]
     std::process::Command::new("open")
+        .arg(&url)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer.exe")
         .arg(&url)
         .spawn()
         .map_err(|e| e.to_string())?;
@@ -366,6 +419,14 @@ pub fn search_dir(root: &str, q: &str, max: usize) -> Vec<SearchHit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temp_path_no_acepta_rutas() {
+        let path = fs_temp_path("sfterm-snap.png".into()).unwrap();
+        assert_eq!(std::path::Path::new(&path).file_name().unwrap(), "sfterm-snap.png");
+        assert!(fs_temp_path("../escape.png".into()).is_err());
+        assert!(fs_temp_path("C:\\escape.png".into()).is_err());
+    }
 
     #[test]
     fn search_dir_encuentra_y_respeta_limites() {

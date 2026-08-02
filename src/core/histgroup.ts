@@ -3,6 +3,7 @@
  *  (tests/hist.test.ts). `nowMs` viaja como argumento: agrupar por fecha con
  *  un reloj implicito seria intesteable, y "Hoy"/"Ayer" son exactamente la
  *  clase de logica que se rompe en silencio. */
+import { pathBasename } from "./path-utils.ts";
 
 export interface ConvCard {
   provider: string;
@@ -58,7 +59,7 @@ const fold = (s: string) =>
 export function matches(card: ConvCard, query: string): boolean {
   const q = fold(query.trim());
   if (!q) return true;
-  const proyecto = card.cwd.split("/").pop() ?? "";
+  const proyecto = pathBasename(card.cwd);
   return fold(`${card.title ?? ""} ${proyecto}`).includes(q);
 }
 
@@ -77,7 +78,7 @@ export const DEFAULT_PREFS: HistPrefs = {
 };
 
 export function projectOf(card: ConvCard): string {
-  return card.cwd.split("/").pop() || "(sin proyecto)";
+  return pathBasename(card.cwd) || "(sin proyecto)";
 }
 
 /** Los proyectos presentes en el historial, por frecuencia descendente —

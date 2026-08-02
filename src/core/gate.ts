@@ -1,5 +1,5 @@
 /** Puerta de agentes (lado JS): ejecuta las ops que llegan por
- *  ~/.config/sfterm/gate/ (ver src-tauri/src/gate.rs y scripts/gate.py).
+ *  state dir local de SFTerm/gate/ (ver Rust y scripts/gate.py).
  *  Es la via para que Levy (u otro agente local) OPERE la app: listar
  *  terminales, abrir terminales, mandar prompts, leer output, screenshot.
  *  AI-first: la UI es el espejo; la operacion entra por aqui.
@@ -14,6 +14,7 @@ import * as pick from "./pick";
 import * as findpage from "./findpage";
 import * as bhistory from "./bhistory";
 import * as H from "./hist";
+import { worktreeShellCommand } from "./shell-command";
 
 import * as locator from "./locator";
 import * as autofit from "./autofit";
@@ -116,6 +117,7 @@ async function histCardBySid(sid: string): Promise<H.ConvCard> {
   if (pref.length === 1) return pref[0];
   if (pref.length > 1) throw new Error(`sid '${sid}' ambiguo (${pref.length} sesiones)`);
   throw new Error(`sesion '${sid}' no esta en el historial`);
+}
 
 /** DESPUES DE UN CLIC. Un clic PUEDE navegar, pero la mayoria no lo hace, y
  *  cobrarle a todos el peaje de esperar una carga que no existe hacia que cada
@@ -132,7 +134,7 @@ async function trasClic(id: number): Promise<Partial<ipc.BrowserState>> {
 
 async function expandTilde(p: string): Promise<string> {
   if (p === "~") return await ipc.fsHomeDir();
-  if (p.startsWith("~/")) return (await ipc.fsHomeDir()) + p.slice(1);
+  if (p.startsWith("~/") || p.startsWith("~\\")) return (await ipc.fsHomeDir()) + p.slice(1);
   return p;
 }
 
@@ -227,7 +229,7 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
           .slice(2, 12);
         const branch = `agente/${ts}`;
         const out = await ipc.shellCapture(
-          `{ root=$(git rev-parse --show-toplevel) && name=$(basename "$root") && dest="$(dirname "$root")/$name-wt-${ts}" && git worktree add -b "${branch}" "$dest" && echo "OK:$dest"; } 2>&1`,
+          worktreeShellCommand(ts, branch),
           base,
         );
         const okLine = out.split("\n").find((l) => l.startsWith("OK:"));
@@ -453,7 +455,9 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
     // PDF de la pagina completa (createPDFWithConfiguration de WebKit)
     case "browser_pdf": {
       const id = requireBrowser(a);
-      const path = await expandTilde(String(a.path ?? "/tmp/sfterm-browser.pdf"));
+      const path = a.path
+        ? await expandTilde(String(a.path))
+        : await ipc.fsTempPath("sfterm-browser.pdf");
       await ipc.browserPdf(id, path);
       return { path };
     }
@@ -480,7 +484,9 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
     // tuviera puesto ese dia. Un render que depende del tamaño de tu ventana
     // no es un render, es una casualidad.
     case "browser_snap": {
-      const path = String(a.path ?? "/tmp/sfterm-browser-snap.png");
+      const path = a.path
+        ? await expandTilde(String(a.path))
+        : await ipc.fsTempPath("sfterm-browser-snap.png");
       const w = a.w != null ? Number(a.w) : undefined;
       const h = a.h != null ? Number(a.h) : undefined;
       if ((w == null) !== (h == null)) {
@@ -611,7 +617,9 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
     // estira el frame nativo, snapshotea y lo restaura. Techo 16000px.
     case "browser_fullsnap": {
       const id = requireBrowser(a);
-      const path = String(a.path ?? "/tmp/sfterm-browser-fullsnap.png");
+      const path = a.path
+        ? await expandTilde(String(a.path))
+        : await ipc.fsTempPath("sfterm-browser-fullsnap.png");
       const h = Number(
         await evalInBrowser(
           id,
@@ -837,7 +845,9 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
 
     // screenshot de la ventana (PNG, sin TCC)
     case "snap": {
-      const path = String(a.path ?? "/tmp/sfterm-gate-snap.png");
+      const path = a.path
+        ? await expandTilde(String(a.path))
+        : await ipc.fsTempPath("sfterm-gate-snap.png");
       await ipc.snapWindow(path);
       return { path };
     }

@@ -23,6 +23,7 @@ import Reader from "./components/Reader";
 import Drawer from "./components/Drawer";
 import ConvReader from "./components/ConvReader";
 import PaneResizer, { usePaneWidth } from "./components/PaneResizer";
+import { pathBasename } from "./core/path-utils";
 import { startGate } from "./core/gate";
 import { ACTION_LABEL, isCapturingKeys } from "./core/keybinds";
 
@@ -89,7 +90,7 @@ export default function App() {
       tiling,
     };
     void actions.boot();
-    startGate(); // puerta de agentes: ~/.config/sfterm/gate/
+    startGate(); // puerta de agentes: state dir local de SFTerm/gate/
     // badge ☰ de un bloque (canvas del motor propio) → abrir Modo Lectura
     window.addEventListener("sfterm:open-reader", ((e: CustomEvent) => {
       useStore.getState().setUI({ reader: e.detail });
@@ -319,7 +320,7 @@ export default function App() {
       const leaf = tiling.findLeaf(s.root, dragging.src.leafId);
       const tab = leaf?.tabs[dragging.src.index];
       if (tab?.kind === "term") label = `⌁ ${s.panels[tab.id]?.fgName || "terminal"}`;
-      else if (tab?.kind === "file") label = `⌁ ${tab.path.split("/").pop()}`;
+      else if (tab?.kind === "file") label = `⌁ ${pathBasename(tab.path)}`;
     }
     setGhost({ x: dragging.x, y: dragging.y, label });
   }, [dragging]);
@@ -401,4 +402,3 @@ export default function App() {
     </div>
   );
 }
-

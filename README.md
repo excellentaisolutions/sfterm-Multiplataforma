@@ -1,13 +1,72 @@
-# SFTerm
+# SFTerm Multiplataforma
 
 > **Nota:** este repositorio es un snapshot público del código de SFTerm, compartido con la comunidad de SaaS Factory. El desarrollo activo ocurre en un repo privado; este espejo se actualiza por tandas.
+
+## Procedencia, autoría y propósito de esta modificación
+
+Este repositorio contiene una **modificación del proyecto SFTerm original de
+Daniel Carreón**, adaptada y mantenida por **Excellent AI Solutions** para
+convertir la aplicación originalmente orientada a macOS en una base
+multiplataforma, reproducible y funcional en Windows.
+
+- Autor y proyecto original: **Daniel Carreón — SFTerm**,
+  [repositorio oficial](https://github.com/saas-factory-community/sfterm).
+- Adaptación multiplataforma: **Excellent AI Solutions**.
+- Repositorio de esta adaptación:
+  [excellentaisolutions/sfterm-Multiplataforma](https://github.com/excellentaisolutions/sfterm-Multiplataforma).
+- Estado: migración Windows en curso; no se presenta como una versión oficial
+  publicada o respaldada por Daniel Carreón.
+
+El snapshot local recibido para esta adaptación no incluía el historial `.git`
+ni una licencia raíz. El enlace upstream oficial fue confirmado posteriormente
+y se conserva también como remoto Git `upstream`. Esta nota reconoce la
+autoría, pero **no concede por sí misma derechos adicionales** sobre el código
+original; cualquier uso o redistribución debe respetar la licencia o
+autorización aplicable de Daniel Carreón y del repositorio oficial.
+
+## Registro auditable de problemas detectados y mejoras
+
+La siguiente tabla distingue entre defectos generales encontrados durante la
+auditoría y limitaciones de portabilidad del código original. El detalle de
+implementación, estado y criterios de aceptación vive en el
+[PRP de migración Windows](docs/PRP-WINDOWS.md).
+
+| ID | Problema detectado en la base original | Corrección incorporada en esta adaptación | Evidencia/estado |
+|---|---|---|---|
+| WIN-001 | Los scripts frontend dependían de `rm`, `cp` y quoting POSIX, por lo que el build fallaba en Windows. | Scripts Node neutrales al shell y bootstrap PowerShell reproducible. | Corregido; `npm run validate:frontend` verde. |
+| WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 65/65 tests ejecutados. |
+| WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido a nivel de resolución; check Rust completo pendiente de `git2`. |
+| WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Contratos PowerShell automatizados y verdes. |
+| WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Prueba Windows de padre/hijo verde. |
+| WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Primitivas Win32 verificadas; E2E completo pendiente. |
+| WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 65 tests frontend, incluidos casos drive y UNC. |
+| WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente y etiquetas Explorer/Finder dinámicas. | Implementado con pruebas Rust añadidas. |
+| WIN-009 | Comandos para reanudar agentes y crear worktrees emitían sintaxis POSIX bajo PowerShell. | Generación por familia de shell, comillas literales seguras y propagación de stderr/exit code. | Tests de quoting PowerShell/POSIX verdes. |
+| CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
+| CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
+
+Para reproducir la evidencia actualmente disponible en Windows:
+
+```powershell
+npm run validate:frontend
+npm run test:shell:windows
+npm run test:process-tree:windows
+npm run test:ptyd-primitives:windows
+```
+
+Las áreas todavía no cerradas —WebView2 completo, daemon E2E, atajos/ventana,
+voz, instaladores firmados y hardening final— permanecen marcadas como
+pendientes o en curso en el PRP; este repositorio evita declarar paridad sin
+evidencia reproducible.
 
 
 > La conversación con tu agente es el HOME; las terminales son el backstage.
 > El workspace del operador agéntico, sin grasa.
 
-App de escritorio macOS (Tauri 2 + Rust + React) **100% soberana**: sin cuenta, sin cloud,
-sin telemetría, un solo binario. Parte de la familia SaaS Factory (SFlow · SFCast · SFPoint · SFTerm).
+App de escritorio Tauri 2 + Rust + React, originalmente diseñada para macOS y
+actualmente en adaptación multiplataforma con soporte nativo Windows: sin
+cuenta, sin cloud y sin telemetría. Parte de la familia SaaS Factory
+(SFlow · SFCast · SFPoint · SFTerm).
 
 ## Qué es
 
@@ -37,7 +96,8 @@ Tres superficies en una app de ~17MB que usa ~90MB de RAM:
 ## Instalación en una Mac nueva
 
 ```bash
-git clone <este repo> && cd sfterm
+git clone https://github.com/excellentaisolutions/sfterm-Multiplataforma.git
+cd sfterm-Multiplataforma
 ./scripts/setup.sh
 ```
 
@@ -57,6 +117,44 @@ npm run validate         # oxlint + tsc + vite build + cargo test
 npm run tauri build      # SFTerm.app + dmg en src-tauri/target/release/bundle/
 ./scripts/setup-stt.sh   # solo las piezas del dictado por voz
 ```
+
+## Preparación reproducible de Windows
+
+El entorno local de un desarrollador nunca forma parte implícita del proyecto.
+WinTerm declara Node y Rust, verifica los requisitos nativos y mantiene sus
+artefactos en `src-tauri/target`. Solo se comparten las instalaciones del
+sistema y las cachés de fuentes gestionadas por npm, Cargo y rustup.
+
+En una máquina Windows nueva, abre PowerShell:
+
+```powershell
+git clone https://github.com/excellentaisolutions/sfterm-Multiplataforma.git
+cd sfterm-Multiplataforma
+.\scripts\setup-windows.ps1 -InstallPrerequisites
+```
+
+El modo `-InstallPrerequisites` usa WinGet para instalar Node 24 LTS, rustup,
+WebView2 Evergreen y Visual Studio Build Tools con el workload C++ definido en
+`.vsconfig`. Sin ese modificador, el script no instala software del sistema:
+comprueba el entorno, instala el toolchain fijado por `rust-toolchain.toml`,
+ejecuta `npm ci`, descarga el lockfile Cargo y valida el frontend.
+
+Diagnóstico sin instalar ni descargar dependencias:
+
+```powershell
+npm run env:check
+# salida consumible por automatización:
+node scripts/check-environment.mjs --json
+# contratos nativos que no requieren compilar Rust:
+npm run test:shell:windows
+npm run test:process-tree:windows
+npm run test:ptyd-primitives:windows
+```
+
+La compilación nativa Windows ya está habilitada en CI y usa el overlay Tauri
+específico de Windows. Consulta el estado y los bloqueos restantes en el
+[PRP de migración](docs/PRP-WINDOWS.md); el bootstrap valida cada prerrequisito
+sin presentar como terminados los subsistemas que aún siguen por fases.
 
 ## Atajos
 
@@ -89,7 +187,7 @@ párrafo = leer desde ahí.
 - **Tool calls de verdad:** cada herramienta que usa el agente aparece en su lugar
   del mensaje como bloque expandible: resumen de una línea (el comando, el path,
   la url) → input JSON completo + output real, con estado corriendo/ok/error.
-- **Adjuntos:** arrastra archivos de Finder o pega una imagen del clipboard; los
+- **Adjuntos:** arrastra archivos desde Explorer/Finder o pega una imagen del clipboard; los
   paths viajan en el prompt y el agente los lee con sus herramientas.
 - **Dictado 🎤:** ffmpeg graba el mic, whisper-cli (whisper.cpp) transcribe LOCAL
   con `large-v3-turbo` cuantizado. Nada sale de tu máquina.
@@ -106,12 +204,13 @@ La regla de diseño: **la UI es espejo, no cabina**. Cero botones de trabajo; el
 trabajo se hace hablándole al agente. Y la app misma es una superficie que los
 agentes pueden operar:
 
-- **Gate** (`~/.config/sfterm/gate/`, siempre activo): un agente externo (Levy, un
+- **Gate** (`%LOCALAPPDATA%\SFTerm\gate` en Windows,
+  `~/.config/sfterm/gate` en macOS, siempre activo): un agente externo (Levy, un
   cron, un script) opera la app por archivos JSON: `ping`, `list`, `spawn`, `send`,
   `read`, `blocks` (comandos con exit/duración), `block_last` (último bloque CON su
   output — estructura, no scrape de pantalla), `show`, `close`, `snap` (screenshot).
   Cliente de referencia: `scripts/gate.py`.
-- **Harness de debug** (`/tmp/sfterm-cmd.json`, solo dev o `SFTERM_DEBUG=1`):
+- **Harness de debug macOS** (`/tmp/sfterm-cmd.json`, solo dev o `SFTERM_DEBUG=1`):
   `eval`/`evaljson`/`snap` para E2E. Los singletons clave están expuestos:
   `window.__sfterm` (store, actions, ipc), `window.__chat`, `window.__readerSpeech`.
 - **El motor de bloques es consultable:** un agente no "lee la pantalla", pide
@@ -122,10 +221,11 @@ Guía completa para agentes (schema del config, arquitectura, reglas duras):
 
 ## Config
 
-`~/.config/sfterm/config.toml` con hot-reload y comentarios preservados
-(toml_edit). Temas (titanium/graphite/midnight/paper/custom), fuentes, atajos
-remapeables, presets agénticos con kickoff. Schema completo en
-[CLAUDE.md](CLAUDE.md).
+`config.toml` vive en `%APPDATA%\SFTerm` en Windows y en
+`~/.config/sfterm` en macOS, con hot-reload y comentarios preservados
+(toml_edit). El estado ligado a la máquina se guarda en
+`%LOCALAPPDATA%\SFTerm`. Temas, fuentes, atajos remapeables y presets agénticos
+con kickoff. Schema completo en [CLAUDE.md](CLAUDE.md).
 
 ## Arquitectura (mapa rápido)
 

@@ -11,6 +11,7 @@ import { scanCandidates, resolveToken, onOpenResolved, type ResolvedToken } from
 import { parseDroppedPaths, type AppConfig, type Rect, type Theme } from "./types";
 import { useStore } from "./store";
 import { leafOfTerm } from "./tiling";
+import { quoteShellPaths } from "./shell-command";
 
 const QUIET_MS = 8000;
 
@@ -172,6 +173,11 @@ class TerminalManager {
       // (la convencion que Claude Code instala con /terminal-setup en VSCode/iTerm)
       term.attachCustomKeyEventHandler((ev) => {
         if (ev.type !== "keydown") return true;
+        if (ev.ctrlKey && !ev.altKey && !ev.metaKey && (ev.key === "Pause" || ev.key === "Cancel")) {
+          ev.preventDefault();
+          void ipc.ptyInterrupt(id, true);
+          return false;
+        }
         // SALTO DE LINEA: ⇧⏎ y ⌥⏎ (paridad con ownterm.ts, 22 jul 2026) →
         // ESC+CR, la convencion meta+enter que los TUIs leen como nueva linea
         if (ev.key === "Enter" && (ev.shiftKey || ev.altKey) && !ev.metaKey && !ev.ctrlKey) {
@@ -276,10 +282,7 @@ class TerminalManager {
       ev.preventDefault();
       const paths = parseDroppedPaths(ev.dataTransfer?.getData("text/plain") ?? "");
       if (paths.length) {
-        const quoted = paths.map((p) =>
-          /[\s'"]/.test(p) ? `'${p.replace(/'/g, `'\\''`)}'` : p,
-        );
-        void ipc.ptyWrite(id, `${quoted.join(" ")} `);
+        void ipc.ptyWrite(id, `${quoteShellPaths(paths)} `);
         this.focus(id);
       }
     });

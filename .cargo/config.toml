@@ -1,0 +1,4 @@
+[build]
+# Keep WinTerm artifacts inside the repository. Dependency sources and the
+# installed toolchain remain shared through the normal Cargo/Rustup homes.
+target-dir = "src-tauri/target"

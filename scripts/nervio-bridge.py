@@ -36,12 +36,12 @@ import time
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gate import EVENTS, GATE, _cursor_path, _read_new  # noqa: E402
+from gate import CONFIG_BASE, EVENTS, GATE, _cursor_path, _read_new  # noqa: E402
 
 # Config opcional por archivo (para maquinas satelite como la laptop, donde
-# el cerebro NO es localhost): ~/.config/sfterm/nervio.env con lineas
+# el cerebro NO es localhost): config dir de SFTerm/nervio.env con lineas
 # SFTERM_NERVIO_URL=... / SFTERM_NERVIO_TOKEN=... Env real gana sobre archivo.
-_ENV_FILE = pathlib.Path.home() / ".config" / "sfterm" / "nervio.env"
+_ENV_FILE = CONFIG_BASE / "nervio.env"
 if _ENV_FILE.exists():
     for _ln in _ENV_FILE.read_text().splitlines():
         _ln = _ln.strip()

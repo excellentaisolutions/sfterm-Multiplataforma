@@ -356,7 +356,7 @@ pub async fn git_commit_file(root: String, hash: String) -> Result<String, Strin
         let commit = obj.peel_to_commit().map_err(|e| e.to_string())?;
         let text = commit_patch(&repo, &commit)?;
 
-        let dir = crate::config::config_dir().join("commits");
+        let dir = crate::config::cache_dir().join("commits");
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         let path = dir.join(format!("{}.patch", short(commit.id())));
         std::fs::write(&path, text).map_err(|e| e.to_string())?;

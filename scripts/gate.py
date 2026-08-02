@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cliente de la puerta de agentes de SFTerm.
 
-La app (si esta abierta) atiende comandos por ~/.config/sfterm/gate/.
+La app atiende comandos desde su state dir local (AppData/Local en Windows).
 Pensado para Levy / Claude Code / crons: operar SFTerm sin tocar la UI.
 
 Uso:
@@ -202,11 +202,14 @@ if sys.version_info < (3, 10):
 # redirigido habla con la instancia AISLADA, jamas con la que tiene las
 # conversaciones reales de Daniel.
 _cfg = os.environ.get("SFTERM_CONFIG_DIR", "").strip()
-_base = (
-    pathlib.Path(os.path.expanduser(_cfg))
-    if _cfg
-    else pathlib.Path.home() / ".config" / "sfterm"
-)
+if _cfg:
+    CONFIG_BASE = STATE_BASE = pathlib.Path(os.path.expanduser(_cfg))
+elif os.name == "nt":
+    CONFIG_BASE = pathlib.Path(os.environ.get("APPDATA", pathlib.Path.home() / "AppData" / "Roaming")) / "SFTerm"
+    STATE_BASE = pathlib.Path(os.environ.get("LOCALAPPDATA", pathlib.Path.home() / "AppData" / "Local")) / "SFTerm"
+else:
+    CONFIG_BASE = STATE_BASE = pathlib.Path.home() / ".config" / "sfterm"
+_base = STATE_BASE
 GATE = _base / "gate"
 EVENTS = GATE / "events.jsonl"
 

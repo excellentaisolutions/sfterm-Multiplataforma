@@ -6,6 +6,7 @@ import { renderMarkdown, handleDocClick } from "../core/md";
 import { readerSpeech, type SpeechState } from "../core/reader-speech";
 import SpeechBar from "./SpeechBar";
 import type { BlockText } from "../core/types";
+import { pathBasename } from "../core/path-utils";
 
 /** Modo Lectura de Bloques: el output de un bloque como DOCUMENTO (markdown
  *  rico o prosa serif) + lectura por voz del sistema con resaltado de palabra.
@@ -173,7 +174,7 @@ export default function Reader() {
               </span>
             )
           ) : null}
-          {data?.cwd ? <span className="reader-cwd" title={data.cwd}>{data.cwd.split("/").filter(Boolean).pop()}</span> : null}
+          {data?.cwd ? <span className="reader-cwd" title={data.cwd}>{pathBasename(data.cwd)}</span> : null}
         </div>
         <div className="reader-actions">
           {data?.running && (

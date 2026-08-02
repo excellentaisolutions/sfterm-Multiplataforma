@@ -1,7 +1,7 @@
 //! Tests del motor VT: secuencias reales contra el grid. Sin browser, sin PTY.
 
 use super::grid::{Cell, Color, BOLD, INVERSE, UNDERLINE, WIDE, WIDE_CONT};
-use super::term::{MouseMode, Term};
+use super::term::{MouseMode, Term, TermEvent};
 
 fn mk(cols: usize, rows: usize) -> (Term, vte::Parser) {
     (Term::new(cols, rows, 100), vte::Parser::new())
@@ -160,6 +160,28 @@ fn osc_titulo_y_cwd() {
     feed(&mut t, &mut p, "\x1b]7;file://mac.local/Users/daniel/Dev%20Site\x07");
     assert_eq!(t.cwd, "/Users/daniel/Dev Site");
     assert!(!t.events.is_empty());
+}
+
+#[test]
+fn osc_cwd_normaliza_uri_de_windows() {
+    let (mut t, mut p) = mk(80, 24);
+    feed(&mut t, &mut p, "\x1b]7;file:///C:/Users/Iris/My%20Project\x07");
+    assert_eq!(t.cwd, "C:/Users/Iris/My Project");
+    assert!(t.events.iter().any(
+        |event| matches!(event, TermEvent::Cwd(path) if path == "C:/Users/Iris/My Project")
+    ));
+}
+
+#[test]
+#[cfg(target_os = "windows")]
+fn osc_cwd_conserva_host_unc() {
+    let (mut t, mut p) = mk(80, 24);
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]7;file://fileserver/Equipo/Proyecto%20Uno\x07",
+    );
+    assert_eq!(t.cwd, "//fileserver/Equipo/Proyecto Uno");
 }
 
 #[test]

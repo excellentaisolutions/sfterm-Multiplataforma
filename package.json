@@ -3,17 +3,30 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "npm@11.12.1",
+  "engines": {
+    "node": ">=24.15.0 <25"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint src",
+    "typecheck": "tsc -b --pretty false",
     "preview": "vite preview",
-    "tauri": "tauri",
-    "icons": "rm -rf public/material-icons && mkdir -p public/material-icons && cp node_modules/material-icon-theme/icons/*.svg public/material-icons/",
+    "tauri": "node scripts/run-with-project-target.mjs tauri",
+    "icons": "node scripts/copy-icons.mjs",
     "predev": "npm run icons",
     "prebuild": "npm run icons",
-    "test": "node --test 'tests/*.test.ts'",
-    "validate": "oxlint src && tsc -b && node --test 'tests/*.test.ts' && vite build && cd src-tauri && cargo test --quiet"
+    "test": "node scripts/run-tests.mjs",
+    "test:shell:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-powershell-integration.ps1",
+    "test:process-tree:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-process-tree.ps1",
+    "test:ptyd-primitives:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-ptyd-primitives.ps1",
+    "env:check": "node scripts/check-environment.mjs",
+    "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
+    "check:rust": "node scripts/run-with-project-target.mjs cargo check --manifest-path src-tauri/Cargo.toml --locked",
+    "test:rust": "node scripts/run-with-project-target.mjs cargo test --manifest-path src-tauri/Cargo.toml --locked --quiet",
+    "validate:frontend": "npm run lint && npm run test && npm run build",
+    "validate": "npm run validate:frontend && npm run test:rust"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

@@ -19,6 +19,8 @@ import type {
   SysTick,
   Theme,
 } from "./types";
+import { quoteShellPaths } from "./shell-command";
+import { pathBasename } from "./path-utils";
 
 const st = () => useStore.getState();
 
@@ -757,10 +759,7 @@ export function dropOn(
       const leaf = T.findLeaf(s.root, targetLeafId);
       const act = leaf ? T.activeTab(leaf) : null;
       if (act?.kind === "term") {
-        const quoted = src.paths.map((p) =>
-          /[\s'"]/.test(p) ? `'${p.replace(/'/g, `'\\''`)}'` : p,
-        );
-        void ipc.ptyWrite(act.id, `${quoted.join(" ")} `);
+        void ipc.ptyWrite(act.id, `${quoteShellPaths(src.paths)} `);
         manager.focus(act.id);
       } else {
         for (const p of src.paths) openFileTab(p, "auto", { leafId: targetLeafId });
@@ -974,7 +973,7 @@ export function toggleFocusedMarkdownRaw() {
   const leaf = s.focusedLeaf ? T.findLeaf(s.root, s.focusedLeaf) : null;
   const tab = leaf ? T.activeTab(leaf) : null;
   if (!leaf || !tab || tab.kind !== "file" || tab.mode === "diff") return;
-  const name = tab.path.split("/").pop() ?? "";
+  const name = pathBasename(tab.path);
   const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
   if (ext !== "md" && ext !== "markdown") return;
   setFileTabRaw(leaf.id, leaf.active, !tab.raw);

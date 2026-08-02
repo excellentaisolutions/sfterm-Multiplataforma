@@ -14,6 +14,7 @@
  *  proveedor del que no sabemos nada seria diseñar en el aire. */
 import * as ipc from "./ipc";
 import type { ConvCard } from "./histgroup";
+import { claudeResumeCommand } from "./shell-command";
 
 export type { ConvCard } from "./histgroup";
 
@@ -31,8 +32,6 @@ export interface ConvProvider {
   atPrompt?(tail: string): boolean;
 }
 
-const sq = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
-
 export const claudeProvider: ConvProvider = {
   key: "claude",
   async list() {
@@ -48,8 +47,7 @@ export const claudeProvider: ConvProvider = {
     }));
   },
   resumeCommand(card, agentCommand) {
-    const env = card.configDir ? `CLAUDE_CONFIG_DIR=${sq(card.configDir)} ` : "";
-    return `${env}${agentCommand} --resume ${card.sid}`;
+    return claudeResumeCommand(agentCommand, card.sid, card.configDir);
   },
   atPrompt(tail) {
     // la caja de input VACIA: una linea que es exactamente "❯". Los ecos de

@@ -4,6 +4,7 @@ import * as ipc from "../core/ipc";
 import * as actions from "../core/actions";
 import { iconForFile, iconForFolder } from "../core/icons";
 import type { DirEntryInfo } from "../core/types";
+import { fileManagerLabel, pathBasename, pathDirname, pathRelative } from "../core/path-utils";
 
 interface NodeState {
   entries: DirEntryInfo[] | null;
@@ -15,6 +16,7 @@ export default function Tree() {
   const treeSel = useStore((s) => s.treeSel);
   const git = useStore((s) => s.git);
   const root = treeRoot;
+  const fileManager = fileManagerLabel();
   const [nodes, setNodes] = useState<Record<string, NodeState>>({});
   const treeRef = useRef<HTMLDivElement>(null);
 
@@ -68,8 +70,7 @@ export default function Tree() {
     return () => window.removeEventListener("keydown", h, true);
   }, [treeSel]);
 
-  const rel = (abs: string) =>
-    abs.startsWith(treeRoot + "/") ? abs.slice(treeRoot.length + 1) : abs === treeRoot ? "" : abs;
+  const rel = (abs: string) => pathRelative(treeRoot, abs);
 
   const gitBadge = (e: DirEntryInfo): { code: string; ignored: boolean } => {
     if (!git?.is_repo) return { code: "", ignored: false };
@@ -205,7 +206,7 @@ export default function Tree() {
       });
       // FSEvents refresca el arbol solo, pero recargar el padre aqui lo hace
       // instantaneo (el flusher del watcher tiene 350ms de debounce)
-      const parents = new Set(res.trashed.map((p) => p.replace(/\/[^/]+$/, "")));
+      const parents = new Set(res.trashed.map(pathDirname));
       parents.forEach((p) => void loadDir(p));
       actions.scheduleGitRefresh();
       if (res.errors.length > 0) {
@@ -319,7 +320,7 @@ export default function Tree() {
             className="ctx-item"
             onClick={() => { void ipc.revealInFinder(menu.entry.path); setMenu(null); }}
           >
-            Revelar en Finder
+            Revelar en {fileManager}
           </div>
           <div
             className="ctx-item"
@@ -334,7 +335,7 @@ export default function Tree() {
             className="ctx-item"
             onClick={() => {
               void actions.newTerminal(
-                menu.entry.is_dir ? menu.entry.path : menu.entry.path.replace(/\/[^/]+$/, ""),
+                menu.entry.is_dir ? menu.entry.path : pathDirname(menu.entry.path),
               );
               setMenu(null);
             }}
@@ -362,11 +363,11 @@ export default function Tree() {
           <div className="trash-card" onClick={(e) => e.stopPropagation()}>
             <div className="trash-title">
               {trash.paths.length === 1
-                ? `¿Eliminar ${trash.paths[0].replace(/^.*\//, "")}?`
+                ? `¿Eliminar ${pathBasename(trash.paths[0])}?`
                 : `¿Eliminar ${trash.paths.length} elementos?`}
             </div>
             <div className="trash-sub">
-              Se va a la <b>Papelera</b> — lo recuperas con "Devolver" del Finder.
+              Se va a la <b>Papelera del sistema</b>; puedes restaurarlo desde {fileManager}.
             </div>
             {trash.errors.length > 0 && (
               <div className="trash-errors">

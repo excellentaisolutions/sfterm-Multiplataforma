@@ -8,6 +8,7 @@ import * as ipc from "../core/ipc";
 // una fila y el teclado sigue moviendose por el orden viejo.
 import { sortByRail } from "../core/cycle";
 import * as T from "../core/tiling";
+import { pathBasename } from "../core/path-utils";
 
 /** Rail del taller — UNA columna estilo Claude Desktop (30 jul 2026):
  *  busqueda + filtros arriba, ACTIVAS (terminales vivas), y el HISTORIAL del
@@ -222,7 +223,7 @@ function TermList({ query }: { query: string }) {
   const q = query.trim().toLowerCase();
   const list = q
     ? all.filter((p) =>
-        `${panelTitle(p)} ${p.cwd.split("/").pop() ?? ""}`.toLowerCase().includes(q),
+        `${panelTitle(p)} ${pathBasename(p.cwd)}`.toLowerCase().includes(q),
       )
     : all;
   const closed = !q && collapsed.has("Activas");
@@ -459,7 +460,7 @@ function HistRail({ query, prefs }: { query: string; prefs: H.HistPrefs }) {
                     </button>
                   </div>
                   <div className="chat-convrow sub">
-                    <span className="chat-convsnip">{c.cwd.split("/").pop() ?? ""}</span>
+                    <span className="chat-convsnip">{pathBasename(c.cwd)}</span>
                   </div>
                 </div>
               ))}

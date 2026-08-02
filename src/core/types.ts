@@ -12,17 +12,7 @@ export type DragSrc =
 
 export type DropRegion = "center" | "left" | "right" | "top" | "bottom" | "tabs";
 
-/** Parsea el payload "text/plain" de un drag nativo del arbol: uno o varios
- *  paths absolutos separados por "\n" (multi-seleccion). Un solo path sin
- *  salto de linea es 100% compatible con el caso de siempre. Sin dependencias
- *  (usado por Tiling.tsx y term.ts — importar desde actions.ts crearia un
- *  ciclo, term.ts -> actions.ts -> term.ts). */
-export function parseDroppedPaths(raw: string): string[] {
-  return raw
-    .split("\n")
-    .map((s) => s.trim())
-    .filter((p) => p.startsWith("/"));
-}
+export { parseDroppedPaths } from "./path-utils";
 
 export interface DropHint {
   leafId: string | null; // null = workspace vacio (drop en todo el centro)

@@ -6,6 +6,7 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github-dark.css";
 import { useStore } from "../core/store";
 import * as ipc from "../core/ipc";
+import { pathBasename } from "../core/path-utils";
 
 const IMG = ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico", "avif"];
 const VIDEO = ["mp4", "mov", "webm", "m4v"];
@@ -61,7 +62,7 @@ export default function FileView(props: {
     return () => clearTimeout(t);
   }, [jump, text, path]);
 
-  const name = path.split("/").pop() ?? "";
+  const name = pathBasename(path);
   const ext = name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
 
   const baseMode: Mode = useMemo(() => {

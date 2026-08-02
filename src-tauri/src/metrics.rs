@@ -28,21 +28,47 @@ pub struct SysTick {
 /// metricas (fgName del frontend) y pty::term_session — deben usar el MISMO
 /// criterio o un panel se veria "vivo" con /claude/i pero sin sesion-verdad.
 pub fn resolve_fg_name(p: &sysinfo::Process) -> String {
-    let cmd = p.cmd();
-    let base = |s: &std::ffi::OsStr| {
-        std::path::Path::new(s)
-            .file_name()
-            .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or_default()
-    };
+    resolve_process_name(p.name(), p.cmd())
+}
+
+fn command_basename(value: &std::ffi::OsStr) -> String {
+    let name = std::path::Path::new(value)
+        .file_name()
+        .map(|file| file.to_string_lossy().to_string())
+        .unwrap_or_default();
+    const SUFFIXES: [&str; 8] = [".exe", ".com", ".cmd", ".bat", ".ps1", ".js", ".mjs", ".py"];
+    for suffix in SUFFIXES {
+        if name.to_ascii_lowercase().ends_with(suffix) {
+            return name[..name.len() - suffix.len()].to_string();
+        }
+    }
+    name
+}
+
+fn resolve_process_name(name: &std::ffi::OsStr, cmd: &[std::ffi::OsString]) -> String {
+    // Los shims npm de Windows arrancan `node.exe <package>/bin/*.js`.
+    // Reconocer el paquete evita exponer nombres genéricos como `cli` o
+    // `codex.js`, y mantiene alineados métricas, lector y term_session.
+    let command_line = cmd
+        .iter()
+        .map(|part| part.to_string_lossy().replace('\\', "/").to_ascii_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if command_line.contains("node_modules/@anthropic-ai/claude-code/") {
+        return "claude".into();
+    }
+    if command_line.contains("node_modules/@openai/codex/") {
+        return "codex".into();
+    }
+
     let first = cmd
         .first()
-        .map(|c| base(c))
-        .unwrap_or_else(|| p.name().to_string_lossy().to_string());
+        .map(|value| command_basename(value))
+        .unwrap_or_else(|| command_basename(name));
     let interp = ["node", "python", "python3", "bun", "deno", "ruby"];
-    if interp.contains(&first.as_str()) {
+    if interp.contains(&first.to_ascii_lowercase().as_str()) {
         if let Some(second) = cmd.get(1) {
-            let s = base(second);
+            let s = command_basename(second);
             if !s.is_empty() && !s.starts_with('-') {
                 return s;
             }
@@ -224,6 +250,35 @@ pub fn start_metrics_loop(app: AppHandle) {
 mod tests {
     use super::*;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn nombres_windows_reconocen_ejecutables_y_shims_npm() {
+        let args = |items: &[&str]| items.iter().map(std::ffi::OsString::from).collect::<Vec<_>>();
+        assert_eq!(
+            resolve_process_name(
+                std::ffi::OsStr::new("node.exe"),
+                &args(&[
+                    "C:\\nvm\\node.exe",
+                    "C:\\nvm\\node_modules\\@openai\\codex\\bin\\codex.js",
+                ]),
+            ),
+            "codex"
+        );
+        assert_eq!(
+            resolve_process_name(
+                std::ffi::OsStr::new("node.exe"),
+                &args(&[
+                    "node.exe",
+                    "C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js",
+                ]),
+            ),
+            "claude"
+        );
+        assert_eq!(
+            resolve_process_name(std::ffi::OsStr::new("codex.exe"), &[]),
+            "codex"
+        );
+    }
 
     fn collect(track: &mut HotTrack, samples: &[(u32, f32, &str)], now: Instant) -> Vec<u32> {
         let s: Vec<(u32, f32, String)> = samples.iter().map(|(i, c, n)| (*i, *c, n.to_string())).collect();

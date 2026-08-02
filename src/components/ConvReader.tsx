@@ -14,6 +14,8 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useStore, panelTitle } from "../core/store";
 import * as actions from "../core/actions";
 import * as ipc from "../core/ipc";
+import { claudeResumeCommand } from "../core/shell-command";
+import { pathBasename } from "../core/path-utils";
 import * as drafts from "../core/drafts";
 import { cachedImage, cachedLocalImage, lightbox, localImage, transcriptImage } from "../core/images";
 import { manager } from "../core/term";
@@ -201,7 +203,7 @@ export function AttachView({ path, onRemove }: { path: string; onRemove?: () => 
   const openIt = () => {
     // sin bytes todavia no hay nada que ampliar: el visor de archivos del
     // taller siempre puede con el (y ahi ademas se ve la ruta)
-    if (isImg && src) lightbox.open({ src, alt: path.split("/").pop(), path });
+    if (isImg && src) lightbox.open({ src, alt: pathBasename(path), path });
     else void actions.openViewer(path);
   };
   if (isImg) {
@@ -213,7 +215,7 @@ export function AttachView({ path, onRemove }: { path: string; onRemove?: () => 
         onClick={openIt}
       >
         {src ? (
-          <img src={src} alt={path.split("/").pop()} onError={() => setBroken(true)} />
+          <img src={src} alt={pathBasename(path)} onError={() => setBroken(true)} />
         ) : (
           <span className="chat-attach-thumb-load" />
         )}
@@ -239,7 +241,7 @@ export function AttachView({ path, onRemove }: { path: string; onRemove?: () => 
       title={`${path} — click: abrir`}
       onClick={openIt}
     >
-      {path.split("/").pop()}
+      {pathBasename(path)}
       {onRemove && (
         <button
           className="chat-attach-x"
@@ -1417,7 +1419,7 @@ export default function ConvReader() {
   /** Boton 📎: selector de archivos del sistema. Va por un <input type="file">
    *  y no por el dialogo nativo de Tauri a proposito — no exige plugin ni
    *  capability nueva. El costo es que la File API del webview no expone la
-   *  ruta, asi que los bytes se COPIAN a ~/.config/sfterm/adjuntos (por eso
+   *  ruta, asi que los bytes se COPIAN al directorio local de adjuntos (por eso
    *  esta acotado a imagenes: los archivos del proyecto entran por el arbol o
    *  por Finder, que si traen ruta real y no se copian). */
   const pickFiles = () => fileInputRef.current?.click();
@@ -1474,14 +1476,14 @@ export default function ConvReader() {
       manager.paste(termId, t);
       setTimeout(() => void ipc.ptyWrite(termId, "\r"), 160);
     } else if (data?.sessionId || mirror.sid) {
-      const sid = data?.sessionId ?? mirror.sid;
+      const resumeSid = data?.sessionId ?? mirror.sid;
+      if (!resumeSid) return;
       const base =
         useStore.getState().config?.general.agent_command ??
         "claude --dangerously-skip-permissions";
       // sesion de OTRA cuenta (bro): revivir bajo SU config dir o claude
       // no encuentra el sid (los transcripts viven por-cuenta)
-      const env = mirror.cfg ? `CLAUDE_CONFIG_DIR='${mirror.cfg}' ` : "";
-      const cmd = `${env}${base} --resume ${sid} '${t.replace(/'/g, "'\\''")}'`;
+      const cmd = claudeResumeCommand(base, resumeSid, mirror.cfg, t);
       manager.paste(termId, cmd);
       setTimeout(() => void ipc.ptyWrite(termId, "\r"), 160);
     } else {
@@ -1705,7 +1707,7 @@ export default function ConvReader() {
                 />
                 <div className="hist-continue-row">
                   <span className="hist-continue-hint">
-                    {mirror.cwd ? (mirror.cwd.split("/").pop() ?? "") : ""}
+                    {mirror.cwd ? pathBasename(mirror.cwd) : ""}
                   </span>
                   <button
                     className="hist-continue-btn"

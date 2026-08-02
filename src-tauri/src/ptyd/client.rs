@@ -7,9 +7,8 @@
 //! pantalla.
 
 use crate::ptyd::proto::*;
-use crate::ptyd::socket_path;
+use crate::ptyd::transport::{self, Stream};
 use std::io;
-use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -25,7 +24,7 @@ struct Inbox {
 }
 
 pub struct Client {
-    w: Mutex<UnixStream>,
+    w: Mutex<Stream>,
     next: AtomicU32,
     inbox: Arc<(Mutex<Inbox>, Condvar)>,
 }
@@ -42,7 +41,7 @@ pub struct FrameBatch {
 impl Client {
     /// Conecta a un daemon YA vivo. `None` si no hay ninguno.
     pub fn connect(who: &str) -> io::Result<Client> {
-        let sock = UnixStream::connect(socket_path())?;
+        let sock = transport::connect()?;
         let rsock = sock.try_clone()?;
         let inbox: Arc<(Mutex<Inbox>, Condvar)> = Arc::default();
         let inbox_r = inbox.clone();
@@ -189,7 +188,7 @@ pub fn connect_or_start(who: &str) -> io::Result<Client> {
 }
 
 pub fn start_daemon() -> io::Result<()> {
-    let exe = std::env::current_exe()?;
+    let exe = daemon_executable()?;
     let log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -200,6 +199,7 @@ pub fn start_daemon() -> io::Result<()> {
     // setsid: sesion propia. Sin esto el daemon comparte grupo con la app y una
     // señal al grupo (o cerrar la terminal que la lanzo) se lo lleva por
     // delante — justo lo que este proceso existe para evitar.
+    #[cfg(target_os = "macos")]
     unsafe {
         use std::os::unix::process::CommandExt;
         cmd.pre_exec(|| {
@@ -207,8 +207,58 @@ pub fn start_daemon() -> io::Result<()> {
             Ok(())
         });
     }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
+    }
     cmd.spawn()?;
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn daemon_executable() -> io::Result<std::path::PathBuf> {
+    std::env::current_exe()
+}
+
+#[cfg(target_os = "windows")]
+fn daemon_executable() -> io::Result<std::path::PathBuf> {
+    use std::time::UNIX_EPOCH;
+
+    let source = std::env::current_exe()?;
+    let metadata = source.metadata()?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let version = format!(
+        "{}-{}-{modified}",
+        env!("CARGO_PKG_VERSION"),
+        metadata.len()
+    );
+    let dir = crate::config::state_dir().join("daemon").join(version);
+    std::fs::create_dir_all(&dir)?;
+    let target = dir.join("sfterm-ptyd.exe");
+    if !target.exists() {
+        let temporary = dir.join(format!("sfterm-ptyd-{}.tmp", std::process::id()));
+        std::fs::copy(&source, &temporary)?;
+        match std::fs::rename(&temporary, &target) {
+            Ok(()) => {}
+            Err(_error) if target.exists() => {
+                let _ = std::fs::remove_file(temporary);
+            }
+            Err(error) => {
+                let _ = std::fs::remove_file(temporary);
+                return Err(error);
+            }
+        }
+    }
+    Ok(target)
 }
 
 /// Escribe texto (atajo legible sobre `write_bytes`).

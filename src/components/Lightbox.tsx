@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { lightbox } from "../core/images";
 import * as ipc from "../core/ipc";
+import { fileManagerLabel } from "../core/path-utils";
 
 /** VISOR DE IMAGEN (26 jul 2026, pedido de Daniel: "poder cerrar las imagenes").
  *
@@ -16,6 +17,7 @@ import * as ipc from "../core/ipc";
 export default function Lightbox() {
   const shot = useSyncExternalStore(lightbox.subscribe, lightbox.get, lightbox.get);
   const [zoom, setZoom] = useState(1);
+  const fileManager = fileManagerLabel();
 
   useEffect(() => setZoom(1), [shot?.src]);
 
@@ -40,10 +42,10 @@ export default function Lightbox() {
         {shot.path && (
           <button
             className="lightbox-btn"
-            title="Revelar en Finder"
+            title={`Revelar en ${fileManager}`}
             onClick={() => void ipc.revealInFinder(shot.path!)}
           >
-            Finder
+            {fileManager}
           </button>
         )}
         <button className="lightbox-btn" title="Cerrar (Esc)" onClick={() => lightbox.close()}>

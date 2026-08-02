@@ -1,6 +1,7 @@
 //! Protocolo del daemon de PTYs (`sfterm-ptyd`).
 //!
-//! UN socket unix multiplexado. Todo viaja en el mismo marco binario para no
+//! Un transporte local multiplexado (Unix socket/Named Pipe). Todo viaja en
+//! el mismo marco binario para no
 //! mezclar "lineas JSON" con bytes crudos de terminal (un `\n` dentro del
 //! output de una terminal partiria el mensaje de control de al lado):
 //!

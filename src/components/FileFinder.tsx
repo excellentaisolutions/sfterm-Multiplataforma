@@ -4,6 +4,7 @@ import * as actions from "../core/actions";
 import * as ipc from "../core/ipc";
 import { iconForFile } from "../core/icons";
 import { fuzzyScore } from "../core/fuzzy";
+import { pathBasename } from "../core/path-utils";
 
 let cache: { root: string; at: number; files: string[] } | null = null;
 
@@ -70,7 +71,7 @@ export default function FileFinder() {
         />
         <div className="overlay-list">
           {results.map((f, i) => {
-            const name = f.split("/").pop() ?? f;
+            const name = pathBasename(f) || f;
             const dir = f.slice(0, f.length - name.length);
             return (
               <div

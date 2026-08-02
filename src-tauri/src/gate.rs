@@ -1,7 +1,7 @@
 //! Puerta de agentes (SIEMPRE activa, a diferencia del harness de debug):
 //! deja que un agente local (Levy via Claude Code, scripts, crons) OPERE la app.
 //!
-//! Protocolo por archivos en ~/.config/sfterm/gate/ (solo el usuario local):
+//! Protocolo por archivos en el state dir local de SFTerm (solo el usuario):
 //!   cliente escribe  cmd-<id>.json   {"op": "list" | "spawn" | "send" | "read"
 //!                                      | "show" | "close" | "snap" | "ping", ...}
 //!   la app responde  res-<id>.json   {"ok": true, "data": ...} | {"ok": false, "error"}
@@ -12,7 +12,7 @@
 use tauri::AppHandle;
 
 pub fn gate_dir() -> std::path::PathBuf {
-    crate::config::config_dir().join("gate")
+    crate::config::state_dir().join("gate")
 }
 
 /// Crea el directorio de la puerta al arrancar (con permisos solo-usuario).
@@ -83,16 +83,25 @@ pub async fn snap_window(app: AppHandle, path: String) -> Result<(), String> {
 }
 
 /// Corre un comando de shell y captura stdout (para kickoff de presets).
-/// zsh -lc para que cargue el PATH real del usuario. Timeout duro de 20s.
+/// Usa zsh login en macOS y PowerShell sin perfil en Windows. Timeout: 20s.
 #[tauri::command]
 pub async fn shell_capture(cmd: String, cwd: Option<String>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use std::io::Read;
         use std::process::{Command, Stdio};
-        let mut c = Command::new("/bin/zsh");
-        c.arg("-lc")
-            .arg(&cmd)
-            .stdin(Stdio::null())
+        #[cfg(target_os = "macos")]
+        let mut c = {
+            let mut command = Command::new("/bin/zsh");
+            command.args(["-lc", &cmd]);
+            command
+        };
+        #[cfg(target_os = "windows")]
+        let mut c = {
+            let mut command = Command::new("powershell.exe");
+            command.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", &cmd]);
+            command
+        };
+        c.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
         if let Some(d) = &cwd {

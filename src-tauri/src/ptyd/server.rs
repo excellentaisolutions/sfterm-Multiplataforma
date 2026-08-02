@@ -1,4 +1,4 @@
-//! El daemon: hostea los PTYs y multiplexa a N clientes por un socket unix.
+//! El daemon: hostea los PTYs y multiplexa clientes por Unix socket/Named Pipe.
 //!
 //! Invariantes:
 //! 1. **Nadie mata una terminal por accidente.** Solo `Kill`/`Shutdown`
@@ -12,13 +12,13 @@
 //!    hilo escritor y su cola; si se atasca, se le corta a el, no al PTY.
 
 use crate::ptyd::proto::*;
-use crate::ptyd::{log_path, now_ms, socket_path};
+use crate::ptyd::transport::{self, Listener, Stream};
+use crate::ptyd::{log_path, now_ms};
 use portable_pty::{native_pty_system, Child, MasterPty, PtySize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Read, Write};
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{sync_channel, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 
 /// Cuanto output se guarda por terminal para el replay. 4 MiB ~ el scrollback
@@ -41,22 +41,39 @@ struct Term {
     master: Mutex<Box<dyn MasterPty + Send>>,
     child: Mutex<Box<dyn Child + Send + Sync>>,
     ring: Mutex<VecDeque<u8>>,
+    #[cfg(target_os = "macos")]
     raw_fd: Option<i32>,
+    #[cfg(target_os = "windows")]
+    job: crate::ptyd::job::Job,
     born_ms: u64,
 }
 
 struct Client {
     #[allow(dead_code)]
     id: u64,
-    out: Sender<Vec<u8>>,
+    out: SyncSender<Vec<u8>>,
     attached: Mutex<HashSet<u32>>,
-    alive: AtomicBool,
+    alive: Arc<AtomicBool>,
 }
 
 #[derive(Default)]
 struct Hub {
     terms: Mutex<HashMap<u32, Arc<Term>>>,
     clients: Mutex<Vec<Arc<Client>>>,
+}
+
+impl Client {
+    fn queue(&self, frame: Vec<u8>) {
+        if !self.alive.load(Ordering::Relaxed) {
+            return;
+        }
+        if matches!(
+            self.out.try_send(frame),
+            Err(TrySendError::Full(_)) | Err(TrySendError::Disconnected(_))
+        ) {
+            self.alive.store(false, Ordering::Relaxed);
+        }
+    }
 }
 
 impl Hub {
@@ -72,9 +89,7 @@ impl Hub {
             if kind == KIND_DATA && !c.attached.lock().unwrap().contains(&term) {
                 continue;
             }
-            if c.out.send(frame.clone()).is_err() {
-                c.alive.store(false, Ordering::Relaxed);
-            }
+            c.queue(frame.clone());
         }
     }
 
@@ -87,7 +102,7 @@ impl Hub {
         frame.extend_from_slice(&(body.len() as u32).to_le_bytes());
         frame.extend_from_slice(&body);
         for c in self.clients.lock().unwrap().iter() {
-            let _ = c.out.send(frame.clone());
+            c.queue(frame.clone());
         }
     }
 }
@@ -106,26 +121,25 @@ fn log(msg: &str) {
 /// Punto de entrada del proceso daemon (`app --ptyd`). No retorna hasta que
 /// alguien pida `Shutdown` o el socket se caiga.
 pub fn run() {
-    let sock = socket_path();
     // ¿ya hay uno vivo? Conectar es la unica prueba honesta: un .sock en disco
     // puede ser el cadaver de un daemon que murio sin limpiar.
-    if UnixStream::connect(&sock).is_ok() {
+    if transport::connect().is_ok() {
         log("ya habia un daemon vivo, salgo");
         return;
     }
-    let _ = std::fs::remove_file(&sock);
-    let listener = match UnixListener::bind(&sock) {
+    transport::cleanup_endpoint();
+    let listener = match Listener::bind() {
         Ok(l) => l,
         Err(e) => {
-            log(&format!("no pude escuchar en {sock:?}: {e}"));
+            log(&format!("no pude abrir el transporte local: {e}"));
             return;
         }
     };
     log(&format!("daemon arriba (pid {})", std::process::id()));
 
     let hub = Arc::new(Hub::default());
-    for stream in listener.incoming() {
-        match stream {
+    loop {
+        match listener.accept() {
             Ok(s) => {
                 let hub = hub.clone();
                 std::thread::spawn(move || serve_client(hub, s));
@@ -135,14 +149,14 @@ pub fn run() {
     }
 }
 
-fn serve_client(hub: Arc<Hub>, stream: UnixStream) {
+fn serve_client(hub: Arc<Hub>, stream: Stream) {
     let id = NEXT_CLIENT.fetch_add(1, Ordering::SeqCst);
-    let (tx, rx) = channel::<Vec<u8>>();
+    let (tx, rx) = sync_channel::<Vec<u8>>(CLIENT_QUEUE_MAX);
     let client = Arc::new(Client {
         id,
         out: tx,
         attached: Mutex::new(HashSet::new()),
-        alive: AtomicBool::new(true),
+        alive: Arc::new(AtomicBool::new(true)),
     });
     hub.clients.lock().unwrap().push(client.clone());
 
@@ -154,11 +168,11 @@ fn serve_client(hub: Arc<Hub>, stream: UnixStream) {
             return;
         }
     };
-    let wclient = client.clone();
+    let walive = client.alive.clone();
     std::thread::spawn(move || {
         while let Ok(frame) = rx.recv() {
             if wsock.write_all(&frame).is_err() {
-                wclient.alive.store(false, Ordering::Relaxed);
+                walive.store(false, Ordering::Relaxed);
                 break;
             }
         }
@@ -183,7 +197,7 @@ fn serve_client(hub: Arc<Hub>, stream: UnixStream) {
         let req: Req = match serde_json::from_slice(&frame.payload) {
             Ok(r) => r,
             Err(e) => {
-                let _ = client.out.send(ctl_frame(frame.id, &Res::Err { msg: e.to_string() }));
+                client.queue(ctl_frame(frame.id, &Res::Err { msg: e.to_string() }));
                 continue;
             }
         };
@@ -200,11 +214,11 @@ fn serve_client(hub: Arc<Hub>, stream: UnixStream) {
                         // reporta y decide la app, aqui no se mata nada
                         Res::Err { msg: format!("proto {proto} != {PROTO}") }
                     };
-                    let _ = client.out.send(ctl_frame(frame.id, &res));
+                    client.queue(ctl_frame(frame.id, &res));
                     continue;
                 }
                 _ => {
-                    let _ = client.out.send(ctl_frame(
+                    client.queue(ctl_frame(
                         frame.id,
                         &Res::Err { msg: "falta hello".into() },
                     ));
@@ -213,7 +227,7 @@ fn serve_client(hub: Arc<Hub>, stream: UnixStream) {
             }
         }
         let res = handle(&hub, &client, req);
-        let _ = client.out.send(ctl_frame(frame.id, &res));
+        client.queue(ctl_frame(frame.id, &res));
         if matches!(res, Res::Ok) && client.attached.lock().unwrap().is_empty() {
             // nada que hacer: solo evita un warning de rama vacia
         }
@@ -289,7 +303,7 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
             frame.extend_from_slice(&id.to_le_bytes());
             frame.extend_from_slice(&(ring.len() as u32).to_le_bytes());
             frame.extend_from_slice(&ring);
-            let _ = client.out.send(frame);
+            client.queue(frame);
             res
         }
         Req::Detach { id } => {
@@ -326,32 +340,31 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
             Res::Ok
         }
         Req::FgPgid { id } => {
-            let fd = hub.terms.lock().unwrap().get(&id).and_then(|t| t.raw_fd);
-            match fd {
-                Some(fd) => {
-                    let pgid = unsafe { libc::tcgetpgrp(fd) };
-                    if pgid > 0 {
-                        Res::Pgid { id, pgid }
-                    } else {
-                        Res::Err { msg: "sin proceso en primer plano".into() }
-                    }
+            let term = hub.terms.lock().unwrap().get(&id).cloned();
+            match term {
+                Some(term) => {
+                    let pgid = foreground_process(&term);
+                    Res::Pgid { id, pgid }
                 }
                 None => Res::Err { msg: format!("no existe la terminal {id}") },
             }
         }
         Req::FgPgids => {
-            let list = hub
-                .terms
-                .lock()
-                .unwrap()
-                .values()
+            let terms: Vec<Arc<Term>> = hub.terms.lock().unwrap().values().cloned().collect();
+            #[cfg(target_os = "windows")]
+            let foreground = {
+                let shell_pids: Vec<u32> = terms.iter().map(|term| term.pid).collect();
+                crate::pty::windows_foreground_processes(&shell_pids)
+            };
+            let list = terms
+                .iter()
                 .map(|t| PgidEntry {
                     id: t.id,
                     pid: t.pid,
-                    pgid: t
-                        .raw_fd
-                        .map(|fd| unsafe { libc::tcgetpgrp(fd) })
-                        .unwrap_or(-1),
+                    #[cfg(target_os = "macos")]
+                    pgid: foreground_process(t),
+                    #[cfg(target_os = "windows")]
+                    pgid: foreground.get(&t.pid).copied().unwrap_or(t.pid as i32),
                 })
                 .collect();
             Res::Pgids { list }
@@ -363,7 +376,7 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
             }
             terms.clear();
             log("shutdown pedido: mato todo y me apago");
-            let _ = std::fs::remove_file(socket_path());
+            transport::cleanup_endpoint();
             // el proceso entero se va; no hay estado que valga la pena salvar
             std::process::exit(0);
         }
@@ -383,6 +396,8 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
 /// 3. Gracia de 1.5s en un hilo aparte y SIGKILL al grupo fg si ignoro el
 ///    SIGHUP — cerrar es cerrar, no una sugerencia.
 fn kill_term_tree(t: &Term) {
+    #[cfg(target_os = "macos")]
+    {
     let fg = t.raw_fd.map(|fd| unsafe { libc::tcgetpgrp(fd) }).unwrap_or(-1);
     if fg > 0 {
         unsafe { libc::killpg(fg, libc::SIGHUP) };
@@ -400,6 +415,28 @@ fn kill_term_tree(t: &Term) {
             }
         });
     }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if t.job.terminate().is_err() && !crate::pty::windows_taskkill_tree(t.pid) {
+            let _ = t.child.lock().unwrap().kill();
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn foreground_process(t: &Term) -> i32 {
+    t.raw_fd
+        .map(|fd| unsafe { libc::tcgetpgrp(fd) })
+        .unwrap_or(-1)
+}
+
+#[cfg(target_os = "windows")]
+fn foreground_process(t: &Term) -> i32 {
+    crate::pty::windows_foreground_processes(&[t.pid])
+        .get(&t.pid)
+        .copied()
+        .unwrap_or(t.pid as i32)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -424,12 +461,22 @@ fn spawn_term(
     let (cmd, cwd_final) = crate::pty::build_shell_command(cwd, shell_integration, colorfgbg, id);
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let pid = child.process_id().unwrap_or(0);
+    #[cfg(target_os = "windows")]
+    let (child, job) = match crate::ptyd::job::Job::assign(pid) {
+        Ok(job) => (child, job),
+        Err(error) => {
+            let mut child = child;
+            let _ = child.kill();
+            return Err(format!("no pude aislar el árbol ConPTY en un Job Object: {error}"));
+        }
+    };
     drop(pair.slave);
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer: SharedWriter = Arc::new(Mutex::new(
         pair.master.take_writer().map_err(|e| e.to_string())?,
     ));
+    #[cfg(target_os = "macos")]
     let raw_fd = pair.master.as_raw_fd().map(|fd| fd as i32);
 
     let term = Arc::new(Term {
@@ -441,7 +488,10 @@ fn spawn_term(
         master: Mutex::new(pair.master),
         child: Mutex::new(child),
         ring: Mutex::new(VecDeque::new()),
+        #[cfg(target_os = "macos")]
         raw_fd,
+        #[cfg(target_os = "windows")]
+        job,
         born_ms: now_ms(),
     });
     hub.terms.lock().unwrap().insert(id, term.clone());

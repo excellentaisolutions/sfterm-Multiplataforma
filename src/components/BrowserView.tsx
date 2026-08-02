@@ -6,6 +6,7 @@ import * as findpage from "../core/findpage";
 import { loadHist, pushHist } from "../core/bhistory";
 import * as autofit from "../core/autofit";
 import * as T from "../core/tiling";
+import { pathBasename } from "../core/path-utils";
 
 /** Chrome del NAVEGADOR DEL AGENTE (F1). El contenido NO es un iframe: es un
  *  WKWebView NATIVO (browser.rs) que Tiling posiciona DEBAJO de esta barra
@@ -650,8 +651,8 @@ export default function BrowserView({ id }: { id: number }) {
         <div className={`browser-strip toast ${toast.state}`}>
           <span className="bs-kind">{toast.state === "running" ? "⇣" : toast.state === "done" ? "✓" : "✕"}</span>
           <span className="bs-msg" title={toast.dest || toast.url}>
-            {toast.state === "running" && `descargando ${toast.dest.split("/").pop() || toast.url}…`}
-            {toast.state === "done" && `${toast.dest.split("/").pop()} descargado`}
+            {toast.state === "running" && `descargando ${pathBasename(toast.dest) || toast.url}…`}
+            {toast.state === "done" && `${pathBasename(toast.dest)} descargado`}
             {toast.state === "failed" && `falló: ${toast.error ?? "error"}`}
           </span>
           {toast.state === "done" && (
