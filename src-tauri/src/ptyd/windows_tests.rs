@@ -17,6 +17,7 @@ fn watchdog(test: &'static str) {
 fn start_daemon(name: &str) -> Client {
     let pipe = format!(r"\\.\pipe\sfterm-e2e-{}-{name}", std::process::id());
     std::env::set_var("SFTERM_PTYD_PIPE", pipe);
+    std::env::set_var("SFTERM_PTYD_E2E_TRACE", "1");
     std::thread::spawn(server::run);
 
     let deadline = Instant::now() + Duration::from_secs(10);

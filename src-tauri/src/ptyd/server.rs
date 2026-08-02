@@ -473,6 +473,13 @@ fn foreground_process(t: &Term) -> i32 {
         .unwrap_or(t.pid as i32)
 }
 
+#[cfg(target_os = "windows")]
+fn trace_windows_e2e(message: &str) {
+    if std::env::var_os("SFTERM_PTYD_E2E_TRACE").is_some() {
+        eprintln!("PTYD E2E server: {message}");
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_term(
     hub: &Arc<Hub>,
@@ -483,6 +490,8 @@ fn spawn_term(
     colorfgbg: Option<String>,
     command: Option<String>,
 ) -> Result<(u32, u32), String> {
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("openpty");
     let pty_system = native_pty_system();
     let pair = pty_system
         .openpty(PtySize {
@@ -498,8 +507,12 @@ fn spawn_term(
     // id ANTES del spawn: el hijo nace sabiendo quien es (SFTERM_TERM_ID)
     let id = NEXT_TERM.fetch_add(1, Ordering::SeqCst);
     let (cmd, cwd_final) = crate::pty::build_shell_command(cwd, shell_integration, colorfgbg, id);
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("spawn shell");
     let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let pid = child.process_id().unwrap_or(0);
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("assign Job Object");
     #[cfg(target_os = "windows")]
     let (child, job) = match crate::ptyd::job::Job::assign(pid) {
         Ok(job) => (child, job),
@@ -511,12 +524,16 @@ fn spawn_term(
             ));
         }
     };
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("drop slave y clonar master");
     drop(pair.slave);
 
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer: SharedWriter = Arc::new(Mutex::new(
         pair.master.take_writer().map_err(|e| e.to_string())?,
     ));
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("registrar terminal");
     #[cfg(target_os = "macos")]
     let raw_fd = pair.master.as_raw_fd();
 
@@ -595,6 +612,8 @@ fn spawn_term(
     }
 
     log(&format!("terminal {id} nacida (pid {pid}) en {cwd_final}"));
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("spawn completado");
     Ok((id, pid))
 }
 
