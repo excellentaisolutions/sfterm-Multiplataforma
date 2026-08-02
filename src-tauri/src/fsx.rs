@@ -120,17 +120,7 @@ pub fn fs_temp_path(name: String) -> Result<String, String> {
 #[tauri::command]
 pub fn reveal_in_finder(path: String) -> Result<(), String> {
     let path = crate::pty::expand_tilde(&path);
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open")
-        .args(["-R", &path])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    #[cfg(target_os = "windows")]
-    std::process::Command::new("explorer.exe")
-        .args(["/select,", &path])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    crate::platform::desktop::reveal(&path)
 }
 
 #[derive(Serialize)]
@@ -173,7 +163,7 @@ pub fn fs_trash(paths: Vec<String>, root: String) -> TrashResult {
     for raw in paths {
         match trash_guard(&raw, &root_canon) {
             Err(e) => errors.push(format!("{raw}: {e}")),
-            Ok(abs) => match trash_item(&abs) {
+            Ok(abs) => match crate::platform::desktop::trash(&abs) {
                 Ok(()) => trashed.push(raw),
                 Err(e) => errors.push(format!("{raw}: {e}")),
             },
@@ -202,50 +192,6 @@ fn trash_guard(raw: &str, root_canon: &Path) -> Result<String, String> {
         return Err("fuera del arbol abierto".into());
     }
     Ok(abs)
-}
-
-#[cfg(target_os = "macos")]
-fn trash_item(path: &str) -> Result<(), String> {
-    use objc2_foundation::{NSFileManager, NSString, NSURL};
-    let url = NSURL::fileURLWithPath(&NSString::from_str(path));
-    NSFileManager::defaultManager()
-        .trashItemAtURL_resultingItemURL_error(&url, None)
-        .map_err(|e| e.localizedDescription().to_string())
-}
-
-#[cfg(target_os = "windows")]
-fn trash_item(path: &str) -> Result<(), String> {
-    const SCRIPT: &str = r#"
-Add-Type -AssemblyName Microsoft.VisualBasic
-$p = $env:SFTERM_TRASH_PATH
-if ([System.IO.Directory]::Exists($p)) {
-  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
-    $p,
-    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
-    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
-} else {
-  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
-    $p,
-    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
-    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
-}
-"#;
-    let output = std::process::Command::new("powershell.exe")
-        .args([
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            SCRIPT,
-        ])
-        .env("SFTERM_TRASH_PATH", path)
-        .output()
-        .map_err(|error| error.to_string())?;
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-    }
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -319,17 +265,7 @@ pub fn open_url(url: String) -> Result<(), String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err("solo http(s)".into());
     }
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open")
-        .arg(&url)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    #[cfg(target_os = "windows")]
-    std::process::Command::new("explorer.exe")
-        .arg(&url)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    crate::platform::desktop::open_url(&url)
 }
 
 /// Indice de archivos para Cmd+P (respeta .gitignore via crate `ignore`). Cap 50k.

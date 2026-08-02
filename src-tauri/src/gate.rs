@@ -19,11 +19,7 @@ pub fn gate_dir() -> std::path::PathBuf {
 pub fn ensure_dir() {
     let dir = gate_dir();
     let _ = std::fs::create_dir_all(&dir);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
-    }
+    let _ = crate::platform::permissions::restrict_directory_to_user(&dir);
 }
 
 /// Devuelve el siguiente comando pendiente (y lo consume), o null.
@@ -88,19 +84,8 @@ pub async fn snap_window(app: AppHandle, path: String) -> Result<(), String> {
 pub async fn shell_capture(cmd: String, cwd: Option<String>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         use std::io::Read;
-        use std::process::{Command, Stdio};
-        #[cfg(target_os = "macos")]
-        let mut c = {
-            let mut command = Command::new("/bin/zsh");
-            command.args(["-lc", &cmd]);
-            command
-        };
-        #[cfg(target_os = "windows")]
-        let mut c = {
-            let mut command = Command::new("powershell.exe");
-            command.args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", &cmd]);
-            command
-        };
+        use std::process::Stdio;
+        let mut c = crate::platform::shell::capture_command(&cmd);
         c.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());

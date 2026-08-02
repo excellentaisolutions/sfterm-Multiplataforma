@@ -1,5 +1,10 @@
 use serde::Serialize;
 
+pub(crate) mod desktop;
+pub(crate) mod fonts;
+pub(crate) mod permissions;
+pub(crate) mod shell;
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FeatureCapability {
