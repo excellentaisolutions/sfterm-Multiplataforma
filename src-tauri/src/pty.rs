@@ -1451,7 +1451,10 @@ mod tests {
         );
 
         *prompt_seq += 1;
-        let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
+        // PowerShell puede insertar SGR entre el contador y el `>` al
+        // repintar PSReadLine. El identificador numérico es estable; la
+        // decoración que lo sigue no forma parte del contrato del prompt.
+        let prompt_marker = format!("SFTERM_PROMPT_{}", *prompt_seq);
         if let Some((keys, attempts)) = graceful_exit {
             for attempt in 0..attempts {
                 write_conpty(writer, keys);
@@ -1499,7 +1502,7 @@ mod tests {
             "{engine} no recuperó el prompt después de {expected_name}: {captured}"
         );
         *prompt_seq += 1;
-        let command_prompt = format!("SFTERM_PROMPT_{}>", *prompt_seq);
+        let command_prompt = format!("SFTERM_PROMPT_{}", *prompt_seq);
         assert!(
             read_conpty_until(
                 output,
