@@ -1337,40 +1337,36 @@ mod tests {
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("reader");
         let (output_tx, output_rx) = std::sync::mpsc::channel();
-        let reader_thread = std::thread::spawn(move || {
-            let mut out = String::new();
+        std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
             loop {
                 match std::io::Read::read(&mut reader, &mut buf) {
                     Ok(0) | Err(_) => break,
-                    Ok(n) => out.push_str(&String::from_utf8_lossy(&buf[..n])),
+                    Ok(n) => {
+                        if output_tx
+                            .send(String::from_utf8_lossy(&buf[..n]).into_owned())
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
                 }
             }
-            let _ = output_tx.send(out);
         });
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        loop {
-            if child.try_wait().expect("consultar PowerShell").is_some() {
-                break;
+        let mut out = String::new();
+        while std::time::Instant::now() < deadline && !out.contains("SFTERM_WINDOWS_OK") {
+            if let Ok(chunk) = output_rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                out.push_str(&chunk);
             }
-            if std::time::Instant::now() >= deadline {
-                let _ = child.kill();
-                drop(pair.master);
-                let _ = child.wait();
-                panic!("PowerShell no terminó dentro de 10 segundos");
-            }
-            std::thread::sleep(std::time::Duration::from_millis(25));
         }
 
-        // Cerrar el pseudoconsole después de que termine el hijo garantiza el
-        // EOF del pipe de salida; leer hasta EOF antes de este drop bloqueaba
-        // indefinidamente el test en windows-latest.
+        // Una PTY representa un shell interactivo: el contrato es producir el
+        // marcador y responder al cierre explícito, no alcanzar EOF por sí sola.
+        let _ = child.kill();
         drop(pair.master);
-        let out = output_rx
-            .recv_timeout(std::time::Duration::from_secs(5))
-            .expect("EOF de salida ConPTY");
-        reader_thread.join().expect("lector ConPTY");
+        let _ = child.wait();
         assert!(
             out.contains("SFTERM_WINDOWS_OK"),
             "salida real de ConPTY: {out}"

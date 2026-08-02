@@ -428,7 +428,8 @@ pub fn search_dir(root: &str, q: &str, max: usize) -> Vec<SearchHit> {
                     .path()
                     .strip_prefix(root)
                     .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| entry.path().to_string_lossy().to_string());
+                    .unwrap_or_else(|_| entry.path().to_string_lossy().to_string())
+                    .replace('\\', "/");
                 out.push(SearchHit {
                     path: rel,
                     line: i + 1,

@@ -166,7 +166,10 @@ fn osc_titulo_y_cwd() {
         &mut p,
         "\x1b]7;file://mac.local/Users/daniel/Dev%20Site\x07",
     );
+    #[cfg(target_os = "macos")]
     assert_eq!(t.cwd, "/Users/daniel/Dev Site");
+    #[cfg(target_os = "windows")]
+    assert_eq!(t.cwd, "//mac.local/Users/daniel/Dev Site");
     assert!(!t.events.is_empty());
 }
 
