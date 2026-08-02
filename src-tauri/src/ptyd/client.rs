@@ -242,9 +242,17 @@ fn daemon_executable() -> io::Result<std::path::PathBuf> {
 
 #[cfg(target_os = "windows")]
 fn daemon_executable() -> io::Result<std::path::PathBuf> {
+    let source = std::env::current_exe()?;
+    daemon_executable_from(&source, &crate::config::state_dir())
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn daemon_executable_from(
+    source: &std::path::Path,
+    state_dir: &std::path::Path,
+) -> io::Result<std::path::PathBuf> {
     use std::time::UNIX_EPOCH;
 
-    let source = std::env::current_exe()?;
     let metadata = source.metadata()?;
     let modified = metadata
         .modified()
@@ -257,7 +265,7 @@ fn daemon_executable() -> io::Result<std::path::PathBuf> {
         env!("CARGO_PKG_VERSION"),
         metadata.len()
     );
-    let dir = crate::config::state_dir().join("daemon").join(version);
+    let dir = state_dir.join("daemon").join(version);
     std::fs::create_dir_all(&dir)?;
     let target = dir.join("sfterm-ptyd.exe");
     if !target.exists() {

@@ -113,7 +113,7 @@ Contratos iniciales:
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
 | 2. Terminal Windows | En curso | ConPTY 5.1/7, Claude, Codex, Vim, OSC, resize, Unicode, paste, Ctrl+C/Break e IME automatizado validados; IME manual y renderer pendientes |
-| 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
+| 3. Daemon persistente | Completada | TUI/replay sobreviven reconexión y rebuild; cliente lento, cierre del árbol y aislamiento entre configs verdes |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
 | 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
 | 6. Atajos, ventana y voz | Pendiente | UX Windows y captura WASAPI |
@@ -432,6 +432,29 @@ Contratos iniciales:
   ignorados, cero fallos); la matriz ConPTY completa terminó en 8,85 s.
 - Para cerrar la Fase 2 solo permanecen la validación manual con un IME Windows
   instalado y la paridad visual del renderer propio de bloques.
+
+#### 2026-08-03 — Validación local offline y daemon E2E de Fase 3
+
+- Poblada la caché del lockfile, `cargo check --locked --offline` compila el
+  backend Windows completo con Rust 1.97/MSVC y la suite base termina con 92
+  tests superados, cero fallos y 7 E2E ignorados explícitamente.
+- Corregido un falso negativo de la matriz ConPTY: el prompt determinista que
+  sincroniza Ctrl+C debe instalarse siempre en Windows PowerShell, mientras el
+  banco costoso de Claude/Codex/Vim continúa opt-in.
+- `npm run test:ptyd-e2e:windows` demuestra sobre Named Pipe y ConPTY reales que
+  Vim conserva exactamente el mismo PID y replay tras desconectar/reconectar la
+  GUI, y que `close` elimina shell y descendientes sin procesos huérfanos.
+- Los E2E restantes derivan canales diferentes desde dos raíces de configuración
+  y prueban aislamiento real; saturan un cliente que deja de leer sin bloquear
+  el PTY ni el control sano; y arrancan el daemon desde su copia versionada para
+  reemplazar el ejecutable principal mientras el mismo shell continúa vivo.
+- Añadido `npm run validate:windows`: ejecuta frontend, fronteras, Cargo offline,
+  integración PowerShell, árbol de procesos, primitivas y daemon E2E. El wrapper
+  descubre Visual Studio con `vswhere` y carga el entorno MSVC aunque PowerShell
+  no sea una Developer Shell. La validación final con los cinco E2E quedó verde
+  en 220,9 s.
+- Los cinco criterios de aceptación de la Fase 3 quedan cubiertos por evidencia
+  E2E reproducible; la fase pasa a completada.
 
 ## 6. Fases de implementación
 

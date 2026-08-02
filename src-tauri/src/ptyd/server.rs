@@ -27,6 +27,18 @@ const RING_MAX: usize = 4 * 1024 * 1024;
 /// Cola de salida por cliente antes de considerarlo atascado.
 const CLIENT_QUEUE_MAX: usize = 4096;
 
+fn client_queue_capacity() -> usize {
+    #[cfg(test)]
+    if let Some(capacity) = std::env::var("SFTERM_PTYD_E2E_CLIENT_QUEUE_MAX")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|capacity| *capacity > 0)
+    {
+        return capacity;
+    }
+    CLIENT_QUEUE_MAX
+}
+
 static NEXT_TERM: AtomicU32 = AtomicU32::new(1);
 static NEXT_CLIENT: AtomicU64 = AtomicU64::new(1);
 
@@ -163,7 +175,7 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
     #[cfg(target_os = "windows")]
     trace_windows_e2e("iniciar serve_client");
     let id = NEXT_CLIENT.fetch_add(1, Ordering::SeqCst);
-    let (tx, rx) = sync_channel::<Vec<u8>>(CLIENT_QUEUE_MAX);
+    let (tx, rx) = sync_channel::<Vec<u8>>(client_queue_capacity());
     let client = Arc::new(Client {
         id,
         out: tx,

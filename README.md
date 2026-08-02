@@ -171,6 +171,8 @@ npm run cargo:doctor:online
 npm run test:shell:windows
 npm run test:process-tree:windows
 npm run test:ptyd-primitives:windows
+# validación local completa, sin acceso de red de Cargo:
+npm run validate:windows
 ```
 
 Si los endpoints de crates.io aparecen como accesibles pero el diagnóstico
@@ -179,7 +181,9 @@ al proceso `cargo.exe` (por ejemplo, mediante firewall por aplicación,
 antivirus/EDR o un sandbox). Es un problema de la máquina o del entorno de
 ejecución, no de `Cargo.toml`: no se cambia `Cargo.lock` ni se introduce un
 mirror para esconderlo. Tras autorizar Cargo, repite `npm run
-cargo:doctor:online` y `npm run check:rust`.
+cargo:doctor:online` y `npm run check:rust`. Cuando la caché del lockfile ya
+está poblada, `npm run validate:windows` fuerza Cargo offline y ejecuta en un
+solo paso frontend, fronteras de plataforma, Rust y los contratos/E2E Windows.
 
 La compilación nativa Windows ya está habilitada en CI y usa el overlay Tauri
 específico de Windows. Consulta el estado y los bloqueos restantes en el
@@ -275,10 +279,14 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows de `cargo test` descubre 94 tests: 92 superados y 2 ignorados
-de forma explícita. Cubre el motor (parser, grid, bloques, soft-wraps), paths y
-configuración multiplataforma, transporte/daemon y piezas puras como ranking de
-modelos whisper y base64 de adjuntos.
+La suite Windows base de `cargo test` descubre 99 tests: 92 superados y 7 E2E
+ignorados de forma explícita. Los cinco E2E del daemon incluidos en
+`npm run test:ptyd-e2e:windows` se habilitan por separado y pasan sobre Named
+Pipe/ConPTY reales: TUI/replay tras reconexión, cierre sin huérfanos, aislamiento
+entre configs, cliente lento y reemplazo del ejecutable. La cobertura incluye el
+motor (parser, grid, bloques, soft-wraps), paths y configuración multiplataforma,
+transporte/daemon y piezas puras como ranking de modelos whisper y base64 de
+adjuntos.
 
 ## Reglas duras del repo
 

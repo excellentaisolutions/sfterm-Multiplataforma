@@ -1569,9 +1569,7 @@ mod tests {
             "{engine} no conservó el pegado bracketed multilínea/Unicode: {out}"
         );
 
-        if engine == "powershell.exe"
-            && std::env::var("SFTERM_REAL_TUI_MATRIX").as_deref() == Ok("1")
-        {
+        if engine == "powershell.exe" {
             write_conpty(
                 writer.as_mut(),
                 "$global:sfPromptCount=0; function prompt { $global:sfPromptCount++; $p + '_PROMPT_' + $global:sfPromptCount + '> ' }\r",
@@ -1587,6 +1585,11 @@ mod tests {
                 ),
                 "{engine} no instaló el prompt determinista: {out}"
             );
+        }
+
+        if engine == "powershell.exe"
+            && std::env::var("SFTERM_REAL_TUI_MATRIX").as_deref() == Ok("1")
+        {
             exercise_real_tui(
                 engine,
                 "$env:CI=$null; claude --safe-mode --no-chrome",
