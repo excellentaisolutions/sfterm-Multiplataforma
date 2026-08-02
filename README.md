@@ -38,7 +38,7 @@ implementación, estado y criterios de aceptación vive en el
 | WIN-001 | Los scripts frontend dependían de `rm`, `cp` y quoting POSIX, por lo que el build fallaba en Windows. | Scripts Node neutrales al shell y bootstrap PowerShell reproducible. | Corregido; `npm run validate:frontend` verde. |
 | WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 69/69 tests ejecutados en Windows y macOS. |
 | WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido; `cargo check`, Clippy estricto y tests Rust verdes en ambos sistemas. |
-| WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Matriz interactiva 5.1/7 con DSR, resize, Unicode y entorno, además de contratos OSC, verde en CI. |
+| WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Matriz 5.1/7 con Claude, Codex, Vim, DSR, resize, Unicode y contratos OSC verde en CI. |
 | WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Matriz ConPTY 5.1/7 verifica Ctrl+C, Ctrl+Break y supervivencia del shell. |
 | WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Primitivas Win32 verificadas; E2E completo pendiente. |
 | WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 69 tests frontend, incluidos casos drive y UNC. |
@@ -53,6 +53,7 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
 | CORE-008 | En el modo daemon predeterminado, Ctrl+Break no consultaba el proceso foreground y degradaba silenciosamente a Ctrl+C. | El bridge obtiene el PID foreground del daemon y aplica la misma terminación segura que el backend local, sin seleccionar nunca el shell ni los PID reservados 0/-1. | Prueba ConPTY real y test unitario verdes en Windows. |
 | CORE-009 | El renderer propio consultaba `isComposing` en el `<textarea>` en vez del `InputEvent`; un IME podía filtrar preediciones, duplicar el texto confirmado o adelantar Enter. | Estado de composición compartido, bloqueo de la tecla virtual 229 y flush diferido compatible con WebView2/WebKit. | Secuencias IME adversariales y paste bracketed multilínea/Unicode verdes. |
+| CORE-010 | La matriz ConPTY solo arrancaba PowerShell y no comprobaba launchers npm, alternate screen ni salida de agentes/TUI reales. | CI instala versiones fijadas de Claude/Codex y conduce ambos más Vim sin prompt ni consumo de API, exigiendo foreground estable, salida cooperativa, prompt restaurado y shell reutilizable. | Banco real verde en Windows limpio; matriz Rust completa en 9,93 s. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -66,7 +67,7 @@ npm run test:rust
 ```
 
 La ejecución de referencia en una máquina limpia es
-[GitHub Actions #30763556317](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30763556317):
+[GitHub Actions #30764864951](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30764864951):
 los cuatro jobs de frontend y backend nativo finalizaron correctamente en
 `windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
 warnings como error y la suite Rust.

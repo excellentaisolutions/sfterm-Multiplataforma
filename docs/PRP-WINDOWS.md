@@ -112,7 +112,7 @@ Contratos iniciales:
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
-| 2. Terminal Windows | En curso | ConPTY 5.1/7, OSC, resize, Unicode, paste bracketed, Ctrl+C/Break e IME automatizado validados; agentes/TUI e IME manual pendientes |
+| 2. Terminal Windows | En curso | ConPTY 5.1/7, Claude, Codex, Vim, OSC, resize, Unicode, paste, Ctrl+C/Break e IME automatizado validados; IME manual y renderer pendientes |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
 | 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
@@ -242,8 +242,8 @@ Contratos iniciales:
   macOS. Las rutas con espacios/apóstrofes y prompts multilínea están cubiertos
   por tests. La detección de shims npm reconoce los paquetes oficiales de
   Claude y Codex en vez de reportar `node`, `cli` o `codex.js`.
-- Quedan por cerrar los bancos con Claude/Codex y otra TUI, una validación
-  manual con IME Windows instalado y la paridad visual del renderer de bloques.
+- Quedan por cerrar una validación manual con IME Windows instalado y la
+  paridad visual del renderer de bloques.
 
 #### 2026-08-02 — Inicio de Fase 3
 
@@ -387,9 +387,9 @@ Contratos iniciales:
 - [GitHub Actions #30763056976](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30763056976)
   dejó verdes los cuatro jobs, incluidos `cargo check`, Clippy estricto y 94
   tests Rust en Windows (92 superados, 2 ignorados, cero fallos).
-- Continúan pendientes para cerrar la Fase 2 los bancos con Claude/Codex y otra
-  TUI, una validación manual con IME Windows instalado y la paridad visual del
-  renderer de bloques; no se declara paridad completa antes de esa evidencia.
+- Continúan pendientes para cerrar la Fase 2 una validación manual con IME
+  Windows instalado y la paridad visual del renderer de bloques; no se declara
+  paridad completa antes de esa evidencia.
 
 #### 2026-08-02 — IME y pegado adversarial de Fase 2
 
@@ -408,6 +408,29 @@ Contratos iniciales:
   (92 superados, 2 ignorados, cero fallos). La matriz ConPTY terminó en 5,64 s.
 - La automatización no sustituye una sesión manual con un IME Windows real;
   esa evidencia permanece pendiente y queda diferenciada expresamente.
+
+#### 2026-08-02 — Banco real de agentes/TUI de Fase 2
+
+- El job Windows instala de forma reproducible Claude Code `2.1.220` y Codex
+  `0.146.0`; Vim procede de Git for Windows, disponible en el runner limpio.
+  Las versiones quedan fijadas para que el resultado no dependa del stack de
+  desarrollo ni de la última publicación de cada proveedor.
+- La matriz abre las tres interfaces sin enviar prompts ni consumir API,
+  comprueba que el foreground se resuelva como `claude`, `codex` y `vim`, y
+  exige que sigan vivas después del tiempo de estabilización.
+- Claude/Codex salen mediante Ctrl+C cooperativo y Vim mediante `:q!`. Un prompt
+  PowerShell único y numerado demuestra que cada TUI restauró la consola antes
+  de ejecutar el siguiente comando. Claude solicita dos Ctrl+C en onboarding;
+  el harness repite solo cuando no aparece el prompt tras la primera pulsación.
+- La terminación destructiva permanece aislada en el banco Ctrl+Break: matar
+  una TUI en modo raw impide su cleanup y contaminaría artificialmente las
+  pruebas siguientes. Después del banco cooperativo continúan verificándose
+  Ctrl+C, Ctrl+Break, paste, Unicode, resize y salida del mismo shell.
+- [GitHub Actions #30764864951](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30764864951)
+  dejó verdes los cuatro jobs. Windows ejecutó 94 tests Rust (92 superados, 2
+  ignorados, cero fallos); la matriz ConPTY completa terminó en 9,93 s.
+- Para cerrar la Fase 2 solo permanecen la validación manual con un IME Windows
+  instalado y la paridad visual del renderer propio de bloques.
 
 ## 6. Fases de implementación
 
