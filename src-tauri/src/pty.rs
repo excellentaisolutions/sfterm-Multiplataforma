@@ -1472,7 +1472,8 @@ mod tests {
                 "terminar el árbol de {expected_name} ({target})"
             );
             assert!(
-                wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
+                wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8))
+                    .is_some(),
                 "{expected_name} no devolvió el foreground a {engine}"
             );
         }
