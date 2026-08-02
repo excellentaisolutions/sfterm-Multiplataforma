@@ -426,14 +426,18 @@ pub fn pty_interrupt(state: State<'_, PtyState>, id: u32, force: bool) -> Result
     };
 
     #[cfg(target_os = "windows")]
-    if force && local {
-        let foreground = local_foreground_process(None, shell_pid);
-        if foreground > 0 && foreground as u32 != shell_pid {
-            return if windows_taskkill_tree(foreground as u32) {
+    if force {
+        let foreground = if local {
+            local_foreground_process(None, shell_pid)
+        } else {
+            crate::ptyd_bridge::fg_pgid(id)
+        };
+        if let Some(target) = windows_force_interrupt_target(shell_pid, foreground) {
+            return if windows_taskkill_tree(target) {
                 Ok(())
             } else {
                 Err(format!(
-                    "no se pudo interrumpir el árbol foreground {foreground}"
+                    "no se pudo interrumpir el árbol foreground {target}"
                 ))
             };
         }
@@ -557,6 +561,11 @@ fn terminate_local_tree(_shell_pid: u32, child: &mut Box<dyn Child + Send + Sync
     }
 
     let _ = child.kill();
+}
+
+#[cfg(target_os = "windows")]
+fn windows_force_interrupt_target(shell_pid: u32, foreground: i32) -> Option<u32> {
+    (foreground > 0 && foreground as u32 != shell_pid).then_some(foreground as u32)
 }
 
 #[cfg(target_os = "windows")]
@@ -1235,6 +1244,15 @@ mod tests {
         assert_eq!(select_windows_foreground(99, &nodes), 99);
     }
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn ctrl_break_nunca_selecciona_el_shell_ni_un_pid_invalido() {
+        assert_eq!(windows_force_interrupt_target(42, 84), Some(84));
+        assert_eq!(windows_force_interrupt_target(42, 42), None);
+        assert_eq!(windows_force_interrupt_target(42, 0), None);
+        assert_eq!(windows_force_interrupt_target(42, -1), None);
+    }
+
     /// El hijo tiene que PODER LEER quien es. No basta con que el codigo
     /// escriba la env: si el id llegara vacio o con otro valor, el agente
     /// estamparia mal sus comandos del gate y actuaria sobre el navegador de
@@ -1314,6 +1332,43 @@ mod tests {
     }
 
     #[cfg(target_os = "windows")]
+    fn read_conpty_until(
+        output: &std::sync::mpsc::Receiver<String>,
+        writer: &mut dyn std::io::Write,
+        captured: &mut String,
+        answered_dsr: &mut usize,
+        marker: &str,
+        timeout: std::time::Duration,
+    ) -> bool {
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            if let Ok(chunk) = output.recv_timeout(std::time::Duration::from_millis(100)) {
+                captured.push_str(&chunk);
+                let requested_dsr = captured.matches("\x1b[6n").count();
+                while *answered_dsr < requested_dsr {
+                    writer
+                        .write_all(b"\x1b[1;1R")
+                        .expect("responder DSR a PowerShell");
+                    writer.flush().expect("flush DSR");
+                    *answered_dsr += 1;
+                }
+            }
+            if captured.contains(marker) {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[cfg(target_os = "windows")]
+    fn write_conpty(writer: &mut dyn std::io::Write, input: &str) {
+        writer
+            .write_all(input.as_bytes())
+            .expect("escribir en ConPTY");
+        writer.flush().expect("flush ConPTY");
+    }
+
+    #[cfg(target_os = "windows")]
     fn exercise_interactive_conpty(engine: &str) {
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -1357,37 +1412,101 @@ mod tests {
             }
         });
 
-        let started = std::time::Instant::now();
-        let deadline = started + std::time::Duration::from_secs(12);
         let mut out = String::new();
         let mut answered_dsr = 0;
-        let mut command_sent = false;
-        while std::time::Instant::now() < deadline && !out.contains("SFTERM_INTERACTIVE_OK") {
-            if let Ok(chunk) = output_rx.recv_timeout(std::time::Duration::from_millis(100)) {
-                out.push_str(&chunk);
-                let requested_dsr = out.matches("\x1b[6n").count();
-                while answered_dsr < requested_dsr {
-                    std::io::Write::write_all(&mut writer, b"\x1b[1;1R")
-                        .expect("responder DSR a PowerShell");
-                    std::io::Write::flush(&mut writer).expect("flush DSR");
-                    answered_dsr += 1;
-                }
+        let _ = read_conpty_until(
+            &output_rx,
+            writer.as_mut(),
+            &mut out,
+            &mut answered_dsr,
+            "\x1b[6n",
+            std::time::Duration::from_secs(2),
+        );
+
+        // Ctrl+C real: interrumpe un workload largo mediante ETX y conserva
+        // el mismo PowerShell para ejecutar el comando siguiente.
+        write_conpty(
+            writer.as_mut(),
+            "$p='SFTERM'; Write-Output ($p + '_CTRL_READY'); Start-Sleep -Seconds 30\r",
+        );
+        assert!(
+            read_conpty_until(
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+                "SFTERM_CTRL_READY",
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} no inició el workload de Ctrl+C: {out}"
+        );
+        write_conpty(writer.as_mut(), "\x03");
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        write_conpty(writer.as_mut(), "Write-Output ($p + '_AFTER_CTRL_C')\r");
+        assert!(
+            read_conpty_until(
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+                "SFTERM_AFTER_CTRL_C",
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} cerró el shell al recibir Ctrl+C: {out}"
+        );
+
+        // Ctrl+Break: el mismo camino que usa pty_interrupt(force=true).
+        // Mata solo el proceso foreground y vuelve al PowerShell padre.
+        write_conpty(
+            writer.as_mut(),
+            &format!(
+                "Write-Output ($p + '_BREAK_READY'); & {engine} -NoLogo -NoProfile -Command \"Start-Sleep -Seconds 30\"\r"
+            ),
+        );
+        assert!(
+            read_conpty_until(
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+                "SFTERM_BREAK_READY",
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} no inició el workload de Ctrl+Break: {out}"
+        );
+        let shell_pid = child.process_id().expect("pid de PowerShell");
+        let foreground_deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let mut foreground = shell_pid as i32;
+        while std::time::Instant::now() < foreground_deadline {
+            foreground = windows_foreground_processes(&[shell_pid])
+                .get(&shell_pid)
+                .copied()
+                .unwrap_or(shell_pid as i32);
+            if windows_force_interrupt_target(shell_pid, foreground).is_some() {
+                break;
             }
-            if !command_sent
-                && (answered_dsr > 0
-                    || std::time::Instant::now().duration_since(started)
-                        >= std::time::Duration::from_millis(750))
-            {
-                std::io::Write::write_all(
-                    &mut writer,
-                    "$p='SFTERM'; Write-Output ($p + '_UTF8_' + [char]0x00F1 + '_' + [char]0x754C); Write-Output ($p + '_ID=' + $env:SFTERM_TERM_ID); Write-Output ($p + '_INTERACTIVE_OK'); exit\r"
-                        .as_bytes(),
-                )
-                .expect("escribir comando interactivo");
-                std::io::Write::flush(&mut writer).expect("flush comando interactivo");
-                command_sent = true;
-            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
+        let target = windows_force_interrupt_target(shell_pid, foreground)
+            .expect("proceso foreground distinto del shell");
+        assert!(
+            windows_taskkill_tree(target),
+            "terminar foreground {target}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(600));
+
+        write_conpty(
+            writer.as_mut(),
+            "Write-Output ($p + '_AFTER_BREAK'); Write-Output ($p + '_UTF8_' + [char]0x00F1 + '_' + [char]0x754C); Write-Output ($p + '_ID=' + $env:SFTERM_TERM_ID); Write-Output ($p + '_INTERACTIVE_OK'); exit\r",
+        );
+        let completed = read_conpty_until(
+            &output_rx,
+            writer.as_mut(),
+            &mut out,
+            &mut answered_dsr,
+            "SFTERM_INTERACTIVE_OK",
+            std::time::Duration::from_secs(8),
+        );
 
         if !matches!(child.try_wait(), Ok(Some(_))) {
             let _ = child.kill();
@@ -1396,8 +1515,12 @@ mod tests {
         drop(pair.master);
         let _ = child.wait();
         assert!(
-            out.contains("SFTERM_INTERACTIVE_OK"),
+            completed,
             "{engine} no completó el comando interactivo: {out}"
+        );
+        assert!(
+            out.contains("SFTERM_AFTER_BREAK"),
+            "{engine} cerró el shell al terminar el foreground: {out}"
         );
         assert!(
             out.contains("SFTERM_UTF8_ñ_界"),
