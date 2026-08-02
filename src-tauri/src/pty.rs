@@ -1340,6 +1340,20 @@ mod tests {
         marker: &str,
         timeout: std::time::Duration,
     ) -> bool {
+        read_conpty_until_occurrence(output, writer, captured, answered_dsr, marker, 1, timeout)
+    }
+
+    #[cfg(target_os = "windows")]
+    #[allow(clippy::too_many_arguments)]
+    fn read_conpty_until_occurrence(
+        output: &std::sync::mpsc::Receiver<String>,
+        writer: &mut dyn std::io::Write,
+        captured: &mut String,
+        answered_dsr: &mut usize,
+        marker: &str,
+        occurrence: usize,
+        timeout: std::time::Duration,
+    ) -> bool {
         let deadline = std::time::Instant::now() + timeout;
         while std::time::Instant::now() < deadline {
             if let Ok(chunk) = output.recv_timeout(std::time::Duration::from_millis(100)) {
@@ -1353,7 +1367,7 @@ mod tests {
                     *answered_dsr += 1;
                 }
             }
-            if captured.contains(marker) {
+            if captured.matches(marker).count() >= occurrence {
                 return true;
             }
         }
@@ -1413,6 +1427,7 @@ mod tests {
         writer: &mut dyn std::io::Write,
         captured: &mut String,
         answered_dsr: &mut usize,
+        prompt_seq: &mut usize,
     ) {
         write_conpty(writer, &format!("{command}\r"));
         let (target, resolved) = wait_conpty_foreground(
@@ -1424,6 +1439,16 @@ mod tests {
             panic!("{engine} no detectó {expected_name} como foreground: {captured}")
         });
         assert_eq!(resolved, expected_name);
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        assert!(
+            wait_conpty_foreground(
+                shell_pid,
+                Some(expected_name),
+                std::time::Duration::from_secs(3),
+            )
+            .is_some(),
+            "{expected_name} terminó antes de estabilizar su TUI"
+        );
 
         if let Some(keys) = graceful_exit {
             write_conpty(writer, keys);
@@ -1436,6 +1461,19 @@ mod tests {
         assert!(
             wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
             "{expected_name} no devolvió el foreground a {engine}"
+        );
+        *prompt_seq += 1;
+        let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
+        assert!(
+            read_conpty_until(
+                output,
+                writer,
+                captured,
+                answered_dsr,
+                &prompt_marker,
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} no restauró el prompt después de {expected_name}: {captured}"
         );
 
         write_conpty(
@@ -1453,6 +1491,19 @@ mod tests {
                 std::time::Duration::from_secs(5),
             ),
             "{engine} no recuperó el prompt después de {expected_name}: {captured}"
+        );
+        *prompt_seq += 1;
+        let command_prompt = format!("SFTERM_PROMPT_{}>", *prompt_seq);
+        assert!(
+            read_conpty_until(
+                output,
+                writer,
+                captured,
+                answered_dsr,
+                &command_prompt,
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} no completó el comando posterior a {expected_name}: {captured}"
         );
     }
 
@@ -1534,6 +1585,22 @@ mod tests {
         if engine == "powershell.exe"
             && std::env::var("SFTERM_REAL_TUI_MATRIX").as_deref() == Ok("1")
         {
+            write_conpty(
+                writer.as_mut(),
+                "$global:sfPromptCount=0; function prompt { $global:sfPromptCount++; $p + '_PROMPT_' + $global:sfPromptCount + '> ' }\r",
+            );
+            assert!(
+                read_conpty_until(
+                    &output_rx,
+                    writer.as_mut(),
+                    &mut out,
+                    &mut answered_dsr,
+                    "SFTERM_PROMPT_1>",
+                    std::time::Duration::from_secs(5),
+                ),
+                "{engine} no instaló el prompt determinista: {out}"
+            );
+            let mut prompt_seq = 1;
             exercise_real_tui(
                 engine,
                 "$env:CI=$null; claude --safe-mode --no-chrome",
@@ -1545,6 +1612,7 @@ mod tests {
                 writer.as_mut(),
                 &mut out,
                 &mut answered_dsr,
+                &mut prompt_seq,
             );
             exercise_real_tui(
                 engine,
@@ -1557,6 +1625,7 @@ mod tests {
                 writer.as_mut(),
                 &mut out,
                 &mut answered_dsr,
+                &mut prompt_seq,
             );
             exercise_real_tui(
                 engine,
@@ -1569,6 +1638,7 @@ mod tests {
                 writer.as_mut(),
                 &mut out,
                 &mut answered_dsr,
+                &mut prompt_seq,
             );
         }
 
