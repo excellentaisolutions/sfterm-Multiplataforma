@@ -17,6 +17,21 @@ function toU8(msg: unknown): Uint8Array {
   return new TextEncoder().encode(String(msg));
 }
 
+export interface FeatureCapability {
+  available: boolean;
+  reason: string | null;
+}
+
+export interface PlatformCapabilities {
+  os: "macos" | "windows";
+  browserHost: FeatureCapability;
+  voiceCapture: FeatureCapability;
+  windowCapture: FeatureCapability;
+}
+
+export const platformCapabilities = () =>
+  invoke<PlatformCapabilities>("platform_capabilities");
+
 export async function ptySpawn(opts: {
   cwd?: string;
   command?: string;

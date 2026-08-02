@@ -1334,6 +1334,10 @@ export async function openBrowser(
   nuevo = false,
   opts?: { focus?: boolean },
 ): Promise<number> {
+  const capability = st().capabilities?.browserHost;
+  if (capability && !capability.available) {
+    throw new Error(capability.reason ?? "el navegador nativo no está disponible");
+  }
   // ⚠️ EL GATE NO MUEVE LA PANTALLA DE DANIEL (bug 29 jul). Un agente abriendo
   // o navegando SU navegador es trabajo de BACKSTAGE, no una peticion de
   // Daniel de mirar algo. Mientras el gate revelaba y enfocaba, dos agentes en
@@ -1669,7 +1673,11 @@ export async function boot() {
   }
   adoptable.clear();
   for (const t of dinfo.terms) adoptable.set(t.id, t);
-  const cfg = await ipc.configGet();
+  const [cfg, capabilities] = await Promise.all([
+    ipc.configGet(),
+    ipc.platformCapabilities(),
+  ]);
+  st().set({ capabilities });
   applyConfig(cfg);
 
   // la app SIEMPRE abre en el taller — el lector (espejo) solo aparece

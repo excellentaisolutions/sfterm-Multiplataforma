@@ -13,6 +13,7 @@ import type {
   Theme,
 } from "./types";
 import { pathBasename } from "./path-utils";
+import type { PlatformCapabilities } from "./ipc";
 
 interface UIState {
   palette: boolean;
@@ -56,6 +57,7 @@ interface UIState {
 
 export interface StoreState {
   booted: boolean;
+  capabilities: PlatformCapabilities | null;
   config: AppConfig | null;
   theme: Theme | null;
   bindingsVersion: number;
@@ -137,6 +139,7 @@ export interface StoreState {
 
 export const useStore = create<StoreState>((set, get) => ({
   booted: false,
+  capabilities: null,
   config: null,
   theme: null,
   bindingsVersion: 0,

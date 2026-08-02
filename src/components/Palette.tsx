@@ -6,12 +6,14 @@ import * as ipc from "../core/ipc";
 interface Cmd {
   label: string;
   hint?: string;
+  disabled?: boolean;
   run: () => void | Promise<void>;
 }
 
 export default function Palette() {
   const open = useStore((s) => s.ui.palette);
   const config = useStore((s) => s.config);
+  const capabilities = useStore((s) => s.capabilities);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,11 +62,18 @@ export default function Palette() {
         hint: "busca localhost:PUERTO en la terminal enfocada",
         run: () => void actions.openDevPreview(),
       },
-      {
-        label: "Abrir navegador",
-        hint: "panel web nativo — el agente lo opera por el gate",
-        run: () => void actions.openBrowser(),
-      },
+      capabilities?.browserHost.available === false
+        ? {
+            label: "Navegador no disponible en esta plataforma",
+            hint: capabilities.browserHost.reason ?? "función no disponible",
+            disabled: true,
+            run: () => {},
+          }
+        : {
+            label: "Abrir navegador",
+            hint: "panel web nativo — el agente lo opera por el gate",
+            run: () => void actions.openBrowser(),
+          },
       { label: "Toggle árbol", hint: "⌘B", run: () => useStore.getState().set({ treeVisible: !useStore.getState().treeVisible }) },
       { label: "Toggle rail", hint: "⌘⌥B", run: () => useStore.getState().set({ railVisible: !useStore.getState().railVisible }) },
       { label: "Configuración", hint: "⌘,", run: () => useStore.getState().setUI({ settings: true }) },
@@ -82,7 +91,7 @@ export default function Palette() {
       );
     }
     return c;
-  }, [config, q]);
+  }, [capabilities, config, q]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -106,7 +115,7 @@ export default function Palette() {
             if (e.key === "Escape") close();
             else if (e.key === "ArrowDown") setSel((s) => Math.min(s + 1, filtered.length - 1));
             else if (e.key === "ArrowUp") setSel((s) => Math.max(s - 1, 0));
-            else if (e.key === "Enter" && filtered[sel]) {
+            else if (e.key === "Enter" && filtered[sel] && !filtered[sel].disabled) {
               close();
               void filtered[sel].run();
             }
@@ -116,9 +125,13 @@ export default function Palette() {
           {filtered.map((c, i) => (
             <div
               key={c.label + i}
-              className={`overlay-row ${i === sel ? "hot" : ""}`}
+              className={`overlay-row ${i === sel ? "hot" : ""} ${c.disabled ? "disabled" : ""}`}
               onMouseEnter={() => setSel(i)}
-              onClick={() => { close(); void c.run(); }}
+              onClick={() => {
+                if (c.disabled) return;
+                close();
+                void c.run();
+              }}
             >
               <span>{c.label}</span>
               {c.hint && <span className="hint">{c.hint}</span>}

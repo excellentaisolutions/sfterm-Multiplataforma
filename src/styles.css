@@ -1130,6 +1130,8 @@ pre.diff { padding: 10px 12px; font-family: ui-monospace, Menlo, monospace; font
   font-size: 13px;
 }
 .overlay-row.hot { background: var(--bg); outline: 1px solid var(--border); }
+.overlay-row.disabled { cursor: not-allowed; opacity: 0.62; }
+.overlay-row.disabled.hot { background: transparent; outline-color: transparent; }
 .overlay-row .hint { margin-left: auto; color: var(--dim); font-size: 11px; }
 .overlay-row img.ficon { width: var(--icon); height: var(--icon); }
 .overlay-row .dim { color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }

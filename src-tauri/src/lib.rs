@@ -24,6 +24,7 @@ mod gate;
 mod gitmirror;
 mod hist;
 mod metrics;
+mod platform;
 mod pty;
 /// Daemon dueño de los PTYs: publico porque el mismo ejecutable lo arranca con
 /// `--ptyd` desde `main.rs` (ver ptyd/mod.rs para el por que de no ser un
@@ -83,6 +84,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_relaunch,
+            platform::platform_capabilities,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_interrupt,
