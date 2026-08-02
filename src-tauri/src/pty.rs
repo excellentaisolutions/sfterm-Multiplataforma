@@ -1314,8 +1314,7 @@ mod tests {
     }
 
     #[cfg(target_os = "windows")]
-    #[test]
-    fn spawn_real_conpty_powershell_echo() {
+    fn exercise_interactive_conpty(engine: &str) {
         let pty_system = native_pty_system();
         let pair = pty_system
             .openpty(PtySize {
@@ -1325,18 +1324,21 @@ mod tests {
                 pixel_height: 0,
             })
             .expect("open ConPTY");
-        let mut cmd = CommandBuilder::new("powershell.exe");
-        cmd.args([
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Write-Output SFTERM_WINDOWS_OK",
-        ]);
+        let mut cmd = CommandBuilder::new(engine);
+        cmd.args(["-NoLogo", "-NoProfile", "-NoExit"]);
+        cmd.env("SFTERM_TERM_ID", "42");
         let mut child = pair.slave.spawn_command(cmd).expect("spawn PowerShell");
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("reader");
         let mut writer = pair.master.take_writer().expect("writer");
+        pair.master
+            .resize(PtySize {
+                rows: 31,
+                cols: 111,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("resize ConPTY");
         let (output_tx, output_rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
@@ -1355,31 +1357,77 @@ mod tests {
             }
         });
 
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let started = std::time::Instant::now();
+        let deadline = started + std::time::Duration::from_secs(12);
         let mut out = String::new();
-        let mut answered_dsr = false;
-        while std::time::Instant::now() < deadline && !out.contains("SFTERM_WINDOWS_OK") {
+        let mut answered_dsr = 0;
+        let mut command_sent = false;
+        while std::time::Instant::now() < deadline && !out.contains("SFTERM_INTERACTIVE_OK") {
             if let Ok(chunk) = output_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                 out.push_str(&chunk);
-                if !answered_dsr && out.contains("\x1b[6n") {
+                let requested_dsr = out.matches("\x1b[6n").count();
+                while answered_dsr < requested_dsr {
                     std::io::Write::write_all(&mut writer, b"\x1b[1;1R")
                         .expect("responder DSR a PowerShell");
                     std::io::Write::flush(&mut writer).expect("flush DSR");
-                    answered_dsr = true;
+                    answered_dsr += 1;
                 }
+            }
+            if !command_sent
+                && (answered_dsr > 0
+                    || std::time::Instant::now().duration_since(started)
+                        >= std::time::Duration::from_millis(750))
+            {
+                std::io::Write::write_all(
+                    &mut writer,
+                    "Write-Output 'SFTERM_UTF8_ñ_界'; Write-Output ('SFTERM_ID=' + $env:SFTERM_TERM_ID); Write-Output 'SFTERM_INTERACTIVE_OK'; exit\r"
+                        .as_bytes(),
+                )
+                .expect("escribir comando interactivo");
+                std::io::Write::flush(&mut writer).expect("flush comando interactivo");
+                command_sent = true;
             }
         }
 
-        // Una PTY representa un shell interactivo: el contrato es producir el
-        // marcador y responder al cierre explícito, no alcanzar EOF por sí sola.
-        let _ = child.kill();
+        if !matches!(child.try_wait(), Ok(Some(_))) {
+            let _ = child.kill();
+        }
         drop(writer);
         drop(pair.master);
         let _ = child.wait();
         assert!(
-            out.contains("SFTERM_WINDOWS_OK"),
-            "salida real de ConPTY: {out}"
+            out.contains("SFTERM_INTERACTIVE_OK"),
+            "{engine} no completó el comando interactivo: {out}"
         );
+        assert!(
+            out.contains("SFTERM_UTF8_ñ_界"),
+            "{engine} no conservó Unicode sobre ConPTY: {out}"
+        );
+        assert!(
+            out.contains("SFTERM_ID=42"),
+            "{engine} no recibió el entorno de terminal: {out}"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn spawn_real_conpty_powershell_interactive_matrix() {
+        let engines: Vec<_> = ["powershell.exe", "pwsh.exe"]
+            .into_iter()
+            .filter(|engine| {
+                std::process::Command::new(engine)
+                    .args(["-NoLogo", "-NoProfile", "-Command", "exit 0"])
+                    .status()
+                    .is_ok_and(|status| status.success())
+            })
+            .collect();
+        assert!(
+            engines.contains(&"powershell.exe"),
+            "Windows PowerShell 5.1 es el fallback mínimo"
+        );
+        for engine in engines {
+            exercise_interactive_conpty(engine);
+        }
     }
 }
 
