@@ -14,6 +14,10 @@ mod platform {
         pub fn try_clone(&self) -> io::Result<Self> {
             self.0.try_clone().map(Self)
         }
+
+        pub fn wait_readable(&self, _timeout: std::time::Duration) -> io::Result<bool> {
+            Ok(true)
+        }
     }
 
     impl Read for Stream {
@@ -107,6 +111,14 @@ mod platform {
             template_file: Handle,
         ) -> Handle;
         fn WaitNamedPipeW(name: *const u16, timeout: u32) -> i32;
+        fn PeekNamedPipe(
+            pipe: Handle,
+            buffer: *mut c_void,
+            buffer_size: u32,
+            bytes_read: *mut u32,
+            total_bytes_available: *mut u32,
+            bytes_left_this_message: *mut u32,
+        ) -> i32;
         fn GetLastError() -> u32;
         fn LocalFree(memory: *mut c_void) -> *mut c_void;
     }
@@ -134,6 +146,36 @@ mod platform {
     impl Stream {
         pub fn try_clone(&self) -> io::Result<Self> {
             self.0.try_clone().map(Self)
+        }
+
+        /// Un `ReadFile` síncrono pendiente en un handle duplicado serializa
+        /// también el `WriteFile` del otro hilo sobre el mismo objeto pipe.
+        /// Sondear antes de leer conserva el full-duplex sin requerir OVERLAPPED.
+        pub fn wait_readable(&self, timeout: std::time::Duration) -> io::Result<bool> {
+            let deadline = std::time::Instant::now() + timeout;
+            loop {
+                let mut available = 0u32;
+                if unsafe {
+                    PeekNamedPipe(
+                        self.0.as_raw_handle(),
+                        null_mut(),
+                        0,
+                        null_mut(),
+                        &mut available,
+                        null_mut(),
+                    )
+                } == 0
+                {
+                    return Err(last_error());
+                }
+                if available > 0 {
+                    return Ok(true);
+                }
+                if std::time::Instant::now() >= deadline {
+                    return Ok(false);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
         }
     }
 

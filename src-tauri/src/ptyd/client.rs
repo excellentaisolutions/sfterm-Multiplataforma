@@ -48,6 +48,16 @@ impl Client {
         std::thread::spawn(move || {
             let mut r = rsock;
             loop {
+                match r.wait_readable(std::time::Duration::from_millis(50)) {
+                    Ok(true) => {}
+                    Ok(false) => continue,
+                    Err(_) => {
+                        let (lock, cv) = &*inbox_r;
+                        lock.lock().unwrap().closed = true;
+                        cv.notify_all();
+                        break;
+                    }
+                }
                 match read_frame(&mut r) {
                     Ok(Some(f)) => {
                         let (lock, cv) = &*inbox_r;

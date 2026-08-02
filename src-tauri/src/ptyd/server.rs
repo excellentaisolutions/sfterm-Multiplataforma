@@ -193,6 +193,14 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
     let mut rsock = stream;
     let mut saludado = false;
     loop {
+        match rsock.wait_readable(std::time::Duration::from_millis(50)) {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(error) => {
+                log(&format!("cliente {id} cerró el transporte: {error}"));
+                break;
+            }
+        }
         let frame = match read_frame(&mut rsock) {
             Ok(Some(f)) => f,
             Ok(None) => break, // se fue: NO se mata nada
