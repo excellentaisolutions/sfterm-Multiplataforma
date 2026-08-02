@@ -111,7 +111,7 @@ Contratos iniciales:
 | Fase | Estado | Evidencia |
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
-| 1. Frontera de plataforma | En curso | Check, Clippy y tests Rust verdes en ambos sistemas; auditoría de neutralidad continúa |
+| 1. Frontera de plataforma | En curso | Capacidades explícitas y check, Clippy y tests Rust verdes; auditoría de neutralidad continúa |
 | 2. Terminal Windows | En curso | ConPTY + integración PowerShell OSC validada; E2E pendiente |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
@@ -319,13 +319,13 @@ Contratos iniciales:
 #### 2026-08-02 — Cierre verificable del baseline nativo
 
 - La ejecución limpia
-  [GitHub Actions #30760271699](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760271699)
+  [GitHub Actions #30760855027](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760855027)
   finalizó con sus cuatro jobs en verde: frontend Windows/macOS y backend
   nativo Windows/macOS.
 - Windows superó los contratos PowerShell, árbol de procesos y primitivas
   Named Pipe/Job Object, seguido de `cargo check --locked`, Clippy estricto y
   `cargo test --locked`.
-- La suite Rust Windows descubrió 91 tests: 89 superados, cero fallos y 2
+- La suite Rust Windows descubrió 92 tests: 90 superados, cero fallos y 2
   ignorados explícitamente. La suite frontend ejecutó 66/66 tests en los dos
   sistemas, además de TypeScript y el build Vite de producción.
 - El primer ciclo de CI expuso defectos que no aparecían en el checkout local:
@@ -337,6 +337,11 @@ Contratos iniciales:
 - El bloqueo `WSAEACCES` de Cargo permanece como diagnóstico exclusivo de este
   entorno de ejecución local. La compilación en runner Windows limpio confirma
   que no procede modificar `Cargo.toml`, `Cargo.lock` ni introducir mirrors.
+- La auditoría de Fase 1 detectó que el contrato `platform_capabilities`
+  descrito en el plan aún no existía. Ahora Rust publica capacidades tipadas
+  para navegador, voz y captura de ventana; el frontend las carga durante el
+  boot. En Windows la paleta deshabilita el navegador pendiente y presenta la
+  razón concreta antes de crear pestañas o modificar el layout.
 - Con esta evidencia se cierra la Fase 0. La Fase 1 sigue abierta únicamente
   para completar la auditoría de neutralidad de módulos y capacidades, no por
   fallos de resolución, compilación o tests Rust.

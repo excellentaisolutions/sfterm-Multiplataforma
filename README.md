@@ -48,7 +48,8 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
 | CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | Formato y Clippy estricto verdes en Windows y macOS. |
 | CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite 66/66. |
-| CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows: 89 tests Rust superados y 2 ignorados; cero fallos. |
+| CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows estable; cero fallos ni esperas indefinidas. |
+| CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | En Windows el navegador queda deshabilitado con una razón explícita; contrato cubierto por test Rust. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -62,7 +63,7 @@ npm run test:rust
 ```
 
 La ejecución de referencia en una máquina limpia es
-[GitHub Actions #30760271699](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760271699):
+[GitHub Actions #30760855027](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760855027):
 los cuatro jobs de frontend y backend nativo finalizaron correctamente en
 `windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
 warnings como error y la suite Rust.
@@ -270,7 +271,7 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows de `cargo test` descubre 91 tests: 89 superados y 2 ignorados
+La suite Windows de `cargo test` descubre 92 tests: 90 superados y 2 ignorados
 de forma explícita. Cubre el motor (parser, grid, bloques, soft-wraps), paths y
 configuración multiplataforma, transporte/daemon y piezas puras como ranking de
 modelos whisper y base64 de adjuntos.
