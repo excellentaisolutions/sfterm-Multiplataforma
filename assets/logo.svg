@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logo SFTerm (arte maestro, 1024). Icono de app: npm run tauri icon sobre el
+     PNG rasterizado de este archivo. Version chica en src/components/Logo.tsx. -->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1e24"/>
+      <stop offset="1" stop-color="#0c0d10"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a3e48"/>
+      <stop offset="1" stop-color="#22252c"/>
+    </linearGradient>
+  </defs>
+  <!-- tile con margen macOS (~8%) -->
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#bg)" stroke="url(#edge)" stroke-width="14"/>
+  <!-- brillo superior sutil -->
+  <rect x="112" y="106" width="800" height="220" rx="164" fill="#ffffff" opacity="0.025"/>
+  <!-- prompt ❯ mostaza -->
+  <path d="M 330 350 L 512 512 L 330 674" fill="none" stroke="#ff9101" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- cursor plata -->
+  <rect x="586" y="608" width="180" height="80" rx="32" fill="#e8e9ea"/>
+</svg>

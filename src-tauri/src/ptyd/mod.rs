@@ -1,0 +1,78 @@
+//! `sfterm-ptyd` — el DUEÑO de los PTYs, fuera de la app.
+//!
+//! ## Por que existe
+//!
+//! Hasta hoy los PTYs eran hijos del proceso de la app (`pty.rs`). Reinstalar
+//! un build = proceso nuevo = SIGHUP a cada `claude` = todas las conversaciones
+//! muertas. Daniel lo dijo el 27 jul asi: "yo lo unico que quiero es que pueda
+//! conservar las conversaciones, en cada rebuild".
+//!
+//! La unica forma real de conseguirlo es que los PTYs NO sean hijos de la app.
+//! Este daemon los adopta: vive fuera, sobrevive a los rebuilds, y la app pasa
+//! a ser un CLIENTE que se conecta, pinta y escribe. Cerrar la app deja de
+//! matar nada; abrirla vuelve a enganchar donde estaba.
+//!
+//! ## Por que NO es un binario aparte
+//!
+//! Es el MISMO ejecutable de la app corriendo con `--ptyd` (ver `main.rs`).
+//! Un segundo binario obligaria a empaquetarlo como `externalBin` de Tauri con
+//! sufijo de target-triple y a mantener dos artefactos en sincronia; con el
+//! flag, el daemon viaja gratis dentro del `.app` que ya se instala. No inicia
+//! Tauri ni AppKit, asi que no aparece en el Dock. Y en macOS un binario
+//! reemplazado en disco no molesta al proceso que ya lo tiene mapeado: el
+//! daemon viejo sigue vivo con SUS terminales mientras entra la app nueva, que
+//! es justamente el comportamiento que buscamos.
+//!
+//! ## Ciclo de vida
+//!
+//! - La app intenta conectar al socket; si no hay nadie, lanza el daemon.
+//! - Cerrar la app: el daemon detecta la desconexion y NO mata nada.
+//! - `Shutdown` (gesto explicito) mata todo y lo apaga. Nunca es automatico
+//!   mientras queden terminales: un daemon sin clientes pero con conversaciones
+//!   vivas es exactamente lo que queremos que exista.
+
+pub mod client;
+pub mod proto;
+pub mod server;
+#[cfg(test)]
+mod tests;
+
+use std::path::PathBuf;
+
+fn base_dir() -> PathBuf {
+    // Deriva del config_dir de la app (respeta SFTERM_CONFIG_DIR): un banco de
+    // pruebas con config propio gana automaticamente daemon propio — socket y
+    // log incluidos — sin rozar el que tiene las conversaciones reales.
+    let d = crate::config::config_dir();
+    let _ = std::fs::create_dir_all(&d);
+    d
+}
+
+/// Socket de control. Va en `~/.config/sfterm/` (no en `/tmp`) para que no se
+/// lo lleve una limpieza del sistema con terminales vivas colgando de el.
+/// `SFTERM_PTYD_SOCK` lo redirige: es como las pruebas hablan con un daemon
+/// propio sin tocar el que tiene las conversaciones de verdad abiertas.
+pub fn socket_path() -> PathBuf {
+    if let Ok(p) = std::env::var("SFTERM_PTYD_SOCK") {
+        if !p.is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    base_dir().join("ptyd.sock")
+}
+
+pub fn log_path() -> PathBuf {
+    if let Ok(p) = std::env::var("SFTERM_PTYD_SOCK") {
+        if !p.is_empty() {
+            return PathBuf::from(format!("{p}.log"));
+        }
+    }
+    base_dir().join("ptyd.log")
+}
+
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}

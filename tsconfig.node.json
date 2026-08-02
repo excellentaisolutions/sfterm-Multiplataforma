@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    /* Bundler mode — MISMA resolucion que tsconfig.app.json a proposito.
+       Con "nodenext", tsc exigia extension .js en los imports relativos de
+       CUALQUIER modulo de src/ que un test tocara, asi que probar una funcion
+       de tiling.ts fallaba por una regla de resolucion que el codigo real
+       (vite) no usa. Node ejecuta los tests strippeando tipos y no consulta
+       esto: aqui tsc solo es el linter. */
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["vite.config.ts", "tests"]
+}

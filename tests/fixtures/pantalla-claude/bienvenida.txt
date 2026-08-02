@@ -1,0 +1,22 @@
+>  claude --model haiku --dangerously-skip-permissions
+╭─── Claude Code v2.1.220 ─────────────────────────────────────────────────────╮
+│                                                    │ Tips for getting        │
+│                Welcome back Daniel!                │ started                 │
+│                                                    │ Ask Claude to create a… │
+│                       ▐▛███▜▌                      │ ─────────────────────── │
+│                      ▝▜█████▛▘                     │ What's new              │
+│                        ▘▘ ▝▝                       │ Bug fixes and reliabil… │
+│      Haiku 4.5 · Claude Max ·                      │ Added Claude Opus 5 (`… │
+│      operador@ejemplo.local....'s Organization     │ Added `sandbox.network… │
+│                /…/scratchpad/sonda2                │ /release-notes for more │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ⚠ 1 MCP server needs authentication · run /mcp
+
+   Tackle your toughest work with Opus 5. Switch anytime with /model.
+
+────────────────────────────────────────────────────────────────────────────────
+❯ Try "edit <filepath> to..."
+────────────────────────────────────────────────────────────────────────────────
+  Haiku 4.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents

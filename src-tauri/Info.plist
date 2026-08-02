@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SFTerm usa el micrófono para el dictado por voz del chat (transcripción 100% local con whisper).</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SFTerm convierte tu voz en texto localmente para dictar mensajes al agente.</string>
+</dict>
+</plist>

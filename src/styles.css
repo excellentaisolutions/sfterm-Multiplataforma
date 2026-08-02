@@ -1,0 +1,3194 @@
+:root {
+  /* ESCALA DE ICONOS (29 jul 2026, pedido de Daniel: "no hay consistencia de
+     tamaño entre todos... compáralo con VS Code"). Habia SIETE tamaños sueltos
+     (10, 11, 12, 13, 14, 16, 17) puestos a ojo, y casi todos por debajo de la
+     referencia. VS Code usa 16px en listas, tabs, arbol y toolbars — ese es el
+     numero, y ahora es UN token, no doce decisiones independientes.
+     Tres escalones y ninguno mas: si algo no cabe en ellos, la duda es de
+     diseño, no de pixeles. */
+  --icon: 16px;      /* DEFAULT: listas, pestañas, arbol, toolbars */
+  --icon-sm: 14px;   /* chips densos que viven DENTRO de una linea de texto */
+  --icon-lg: 18px;   /* switchers de vista del sidebar (mas peso visual) */
+
+  --bg: #0c0d10;
+  --panel: #111318;
+  --rail: #0e1013;
+  --status: #0a0b0e;
+  --fg: #d7d9de;
+  --dim: #8b8f98;
+  --accent: #ff9101;
+  --border: #22252c;
+  --green: #4ec96a;
+  --red: #ff5c57;
+  --yellow: #f3f99d;
+  --ui-font: "Inter", -apple-system, sans-serif;
+  --ui-size: 13px;
+  --titlebar-h: 38px;
+  --status-h: 26px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: var(--ui-size);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---------- titlebar ---------- */
+#titlebar {
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--status);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  position: relative;
+}
+#titlebar .brand {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  font-size: 12px;
+  color: var(--dim);
+  pointer-events: none;
+  display: inline-block;
+}
+#titlebar .brand svg { border-radius: 5px; }
+#titlebar .brand b { color: var(--accent); font-weight: 700; }
+/* ── DRAWER ⌘J: terminal rapida desde abajo, sobre cualquier superficie ── */
+/* pool propio de su terminal: ENCIMA del chat (z-80), debajo de modales (90) */
+#term-pool-drawer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 86;
+}
+.drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.45);
+  animation: drawer-up 0.16s ease;
+}
+@keyframes drawer-up {
+  from { transform: translateY(24px); opacity: 0; }
+}
+.drawer-sash {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 2;
+  transition: background 0.12s ease 0.2s;
+}
+.drawer-sash:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.drawer-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-bottom: 1px solid var(--border);
+}
+/* tabs multi-terminal (estilo VSCode): la activa marcada, ✕ solo al hover */
+.drawer-tabs {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.drawer-tabs::-webkit-scrollbar { display: none; }
+.drawer-tab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--dim);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.drawer-tab:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.drawer-tab.active {
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  color: var(--fg);
+}
+.drawer-tab-title { font-family: var(--mono, ui-monospace, monospace); }
+.drawer-tab-x {
+  all: unset;
+  font-size: 9px;
+  line-height: 1;
+  padding: 2px;
+  color: var(--dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.drawer-tab:hover .drawer-tab-x,
+.drawer-tab.active .drawer-tab-x { opacity: 0.7; }
+.drawer-tab-x:hover { opacity: 1; color: var(--fg); }
+.drawer-host { flex: 1 1 auto; min-height: 0; }
+body.resizing-y { cursor: row-resize; user-select: none; -webkit-user-select: none; }
+
+/* panel de atajos (⌘/) */
+.shortcuts-card { width: 680px; max-height: 80vh; padding: 0; }
+.shortcuts-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+}
+.shortcuts-head b { font-size: 14px; }
+.shortcuts-note { flex: 1 1 auto; color: var(--dim); font-size: 11px; }
+.shortcuts-cols {
+  columns: 2;
+  column-gap: 28px;
+  padding: 12px 18px 16px;
+}
+.shortcuts-group { break-inside: avoid; margin-bottom: 14px; }
+.shortcuts-group h4 {
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 6px;
+}
+.shortcuts-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 2.5px 0;
+}
+.shortcuts-label { flex: 1 1 auto; color: var(--fg); font-size: 12px; }
+.shortcuts-row kbd {
+  flex: 0 0 auto;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 7px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  white-space: nowrap;
+}
+
+/* ---------- main ---------- */
+#main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+/* ---------- rail ---------- */
+#rail {
+  width: var(--rail-w, 232px);
+  flex: 0 0 auto;
+  background: var(--rail);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.icon-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* el rail del taller ES el mismo ConvList del chat (18 jul): #rail pone
+   fondo (--rail) y borde; la lista interior va transparente y llena el alto */
+#rail .chat-side { background: transparent; border-right: none; }
+
+/* ---------- center / tiling ---------- */
+#center {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  background: var(--bg);
+}
+.leaf-frame {
+  position: absolute;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+/* foco sin contorno de acento (pedido de Daniel 15 jul): apenas un borde
+   un pelo mas claro; la pestaña activa ya dice donde estas */
+.leaf-frame.focused { border-color: color-mix(in srgb, var(--fg) 14%, var(--border)); }
+.leaf-frame .leaf-content {
+  position: absolute;
+  inset: 30px 0 0 0; /* debajo de la tab bar */
+  display: flex;
+  min-height: 0;
+}
+/* tab bar por campo + cluster de acciones del visor, una sola fila de 30px:
+   .leaf-tabs scrollea (flex:1), .leaf-actions jamas se scrollea fuera de vista */
+.leaf-bar {
+  height: 30px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+.leaf-tabs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px 6px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.leaf-tabs::-webkit-scrollbar { display: none; }
+.leaf-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px 0 4px;
+}
+.leaf-action-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--dim);
+  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.leaf-action-btn:hover { color: var(--fg); border-color: var(--border); }
+.leaf-action-btn.on { color: var(--accent); }
+.leaf-action-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ---------- navegador del agente (F1) ---------- */
+/* la barra mide 34px EXACTOS: BROWSER_CHROME_H en Tiling.tsx posiciona el
+   WKWebView nativo justo debajo — si cambias una, cambia la otra */
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  flex: 0 0 34px;
+  width: 100%;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.browser-url {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  outline: none;
+}
+.browser-url:focus { border-color: var(--accent); }
+.browser-url.loading { border-color: var(--accent); }
+.leaf-frame .leaf-content:has(.browser-chrome) { flex-direction: column; }
+/* hueco donde pinta el webview NATIVO (el efecto de Tiling lo posiciona) */
+.browser-host { flex: 1; min-height: 0; }
+
+/* -- chrome v2 (29 jul): progreso, historial, salud, strips -- */
+.browser-url-wrap { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
+.browser-url-wrap .browser-url { flex: 1; }
+.browser-progress {
+  position: absolute;
+  left: 4px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+  pointer-events: none;
+}
+.browser-hist {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.browser-hist-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.browser-hist-item:hover { background: var(--hover); }
+.browser-hist-item .bh-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.browser-hist-item .bh-url {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+  font-size: 11px;
+}
+.browser-health-wrap { position: relative; flex: 0 0 auto; }
+.leaf-action-btn.health { color: #e5484d; font-size: 11px; width: auto; padding: 0 6px; }
+.browser-health-pop {
+  position: absolute;
+  top: 26px;
+  right: 0;
+  z-index: 60;
+  width: 340px;
+  max-width: 60vw;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+.browser-health-pop .bh-line {
+  font-family: var(--mono-font, monospace);
+  font-size: 10.5px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.browser-health-pop .bh-line.err { color: #e5484d; }
+.browser-health-pop .bh-line.fail { color: #f5a524; }
+.browser-health-pop .bh-line.hint { color: var(--dim); font-family: var(--ui-font); font-style: italic; }
+
+/* filas extra del chrome: dialogo JS / find / toast — Tiling les abre hueco
+   via browserUx.extraH (34/34/30px: si cambias una, cambia la otra) */
+.browser-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  flex: 0 0 34px;
+  width: 100%;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--ui-font);
+  font-size: 12px;
+}
+.browser-strip.toast { height: 30px; flex: 0 0 30px; color: var(--dim); }
+.browser-strip.toast.done { color: var(--fg); }
+.browser-strip.toast.failed { color: #e5484d; }
+.browser-strip .bs-kind { flex: 0 0 auto; }
+.browser-strip .bs-msg {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.browser-strip .bs-input {
+  flex: 0 1 220px;
+  min-width: 80px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  outline: none;
+}
+.browser-strip .bs-input:focus { border-color: var(--accent); }
+.browser-strip .bs-input.grow { flex: 1 1 auto; }
+.browser-strip .bs-count { flex: 0 0 auto; color: var(--dim); font-size: 11px; }
+.browser-strip .bs-btn {
+  flex: 0 0 auto;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.browser-strip .bs-btn:hover { background: var(--hover); }
+.browser-strip .bs-btn.ok { border-color: var(--accent); color: var(--accent); }
+.ficon-globe { color: var(--dim); flex: 0 0 auto; }
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  color: var(--dim);
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 7px 7px 0 0;
+  cursor: grab;
+  max-width: 190px;
+  min-width: 0;
+  user-select: none;
+}
+.tab-item:active { cursor: grabbing; }
+/* + de pestaña nueva del navegador: A LA DERECHA de las pestañas (30 jul) */
+.tab-plus {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab-plus:hover { color: var(--fg); border-color: var(--border); }
+.tab-item.active {
+  color: var(--fg);
+  background: var(--bg);
+  border-color: var(--border);
+}
+.tab-item .tab-label {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tab-item .ficon { width: var(--icon); height: var(--icon); flex: 0 0 auto; }
+.tab-item .tab-close {
+  opacity: 0;
+  font-size: 11px;
+  padding: 1px 3px;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+.tab-item:hover .tab-close { opacity: 1; }
+.tab-item .tab-close:hover { color: var(--red); background: var(--border); }
+/* pestaña PREVIEW (estilo VSCode): se reemplaza sola en vez de acumularse.
+   itálica, sin badges — se distingue por el TIPO de letra, no por adorno */
+.tab-item.preview .tab-label { font-style: italic; }
+
+/* divisores arrastrables entre campos */
+.split-divider {
+  position: absolute;
+  z-index: 8;
+  background: transparent;
+}
+.split-divider.row { cursor: col-resize; }
+.split-divider.col { cursor: row-resize; }
+.split-divider:hover { background: color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 4px; }
+
+/* workspace vacio */
+.center-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+.center-empty svg { opacity: 0.85; border-radius: 14px; }
+.center-empty:hover { color: var(--accent); }
+
+/* ---------- composer (⌘I): input real hacia la terminal enfocada ---------- */
+#composer {
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  padding: 8px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#composer .composer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--dim);
+}
+#composer .composer-head svg { border-radius: 4px; }
+#composer .composer-target {
+  color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#composer .composer-hint { margin-left: auto; flex: 0 0 auto; opacity: 0.75; }
+#composer textarea {
+  width: 100%;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.45 var(--ui-font);
+  padding: 9px 12px;
+  outline: none;
+  overflow-y: auto;
+}
+#composer textarea:focus { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+#composer textarea::placeholder { color: var(--dim); opacity: 0.7; }
+
+/* pool de terminales: xterm vive AQUI, fuera de React */
+#term-pool {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.term-slot {
+  position: absolute;
+  display: none;
+  pointer-events: auto;
+  background: var(--panel);
+  border-radius: 0 0 10px 10px;
+}
+.term-slot .xterm { height: 100%; }
+/* durante drags, los slots dejan pasar el puntero para hit-testear campos */
+body.dragging .term-slot,
+body.dragging-file .term-slot { pointer-events: none; }
+
+/* hints de drop (region del campo que recibiria) */
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+.drop-region {
+  position: absolute;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  transition: all 70ms;
+  pointer-events: none;
+}
+.drop-region.hot {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.drag-ghost {
+  position: fixed;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  transform: translate(-50%, -140%);
+  white-space: nowrap;
+}
+
+/* ---------- side (arbol + visor) ---------- */
+#side {
+  width: 320px;
+  flex: 0 0 auto;
+  border-left: 1px solid var(--border);
+  background: var(--rail);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#side.wide { width: min(720px, 48vw); }
+.side-head {
+  padding: 8px 12px 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--dim);
+}
+.side-head .root-name {
+  color: var(--fg);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.side-head .spacer { flex: 1; }
+
+/* ── SOURCE CONTROL espejo (28 jul 2026 · vista completa 29 jul) ──
+   El panel MUESTRA (constitucion AI-first): cero botones de accion de
+   trabajo — refresh (fetch read-only) es el unico gesto. Vive como VISTA
+   del sidebar (switcher estilo VS Code en .side-head--tabs). */
+.scm--view {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.scm-empty {
+  color: var(--dim);
+  font-size: 11.5px;
+  padding: 14px 12px;
+  text-align: center;
+}
+
+/* cabecera del sidebar con TABS de vista (29 jul, estilo VS Code) */
+.side-head--tabs {
+  position: relative;
+  gap: 4px;
+  padding: 8px 10px 6px;
+}
+.side-tab {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  width: 26px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  cursor: pointer;
+  position: relative;
+}
+.side-tab:hover { color: var(--fg); }
+.side-tab.active {
+  color: var(--accent);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+/* BADGE del contador, calcado de VS Code: pildora RELLENA con el acento y
+   texto del color del fondo. El de antes era texto del color del acento sobre
+   el fondo del rail — o sea casi invisible justo cuando mas importa (muchos
+   cambios sin commitear). `min-width` + `padding` en vez de ancho fijo: "3" y
+   "99+" tienen que verse los dos como pildora, no como pildora y como barra. */
+.side-tab-badge {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--bg);
+  background: var(--accent);
+  border-radius: 999px;
+  line-height: 1;
+  pointer-events: none;
+}
+.root-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 5px;
+  justify-content: flex-end;
+}
+.root-pick:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.root-chev { color: var(--dim); font-size: 8px; }
+.root-menu {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  left: 8px;
+  z-index: 40;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.root-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fg);
+}
+.root-menu-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.root-menu-row.current .root-menu-name { color: var(--accent); font-weight: 600; }
+.root-menu-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.root-menu-kind { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.6px; }
+.root-menu-hint {
+  padding: 5px 8px 3px;
+  font-size: 10px;
+  color: var(--dim);
+  border-top: 1px solid var(--border);
+  margin-top: 3px;
+}
+
+/* IR AL FONDO del lector (29 jul): sticky dentro del scroll, aparece al
+   alejarte del final, click = scroll smooth. Sutil: circulo chico, dim. */
+.jump-wrap {
+  position: sticky;
+  bottom: 14px;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.jump-wrap.on { opacity: 1; }
+.jump-bottom {
+  pointer-events: auto;
+  transform: translateY(-36px);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--dim);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.jump-wrap:not(.on) .jump-bottom { pointer-events: none; }
+.jump-bottom:hover { color: var(--accent); border-color: var(--accent); }
+.scm-refresh {
+  border: none;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+.scm-refresh.busy { animation: scm-spin 0.9s linear infinite; }
+@keyframes scm-spin { to { transform: rotate(360deg); } }
+.scm-body {
+  /* flex:1 = toma TODA la altura que sobra de la columna y scrollea ella.
+     Sin esto crecia con su contenido, y por eso el log tenia un tope de 30vh
+     que cortaba la lista de commits a media pantalla (reporte de Daniel 29
+     jul: "se corta, no esta hasta abajo"). Un solo scroll en el panel, no
+     dos anidados. */
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding: 0 6px 8px;
+}
+.scm-sync {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 6px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.scm-sync .spacer { flex: 1; }
+.scm-branch { color: var(--fg); font-weight: 600; }
+.scm-dim { color: var(--dim); overflow: hidden; text-overflow: ellipsis; }
+/* ⇡ = commits SOLO en este disco: la marca mas importante del panel */
+.scm-ahead { color: var(--accent); font-weight: 700; }
+.scm-behind { color: var(--yellow, #d7ba7d); font-weight: 600; }
+.scm-insync { color: var(--green, #6a9955); }
+.scm-noremote {
+  color: var(--dim);
+  font-size: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.scm-sect { margin-top: 2px; }
+.scm-sect-head {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--dim);
+  padding: 4px 6px 2px;
+}
+.scm-count { opacity: 0.7; }
+.scm-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1.5px 6px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.scm-row:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+/* el codigo vive a la DERECHA de la fila (paridad VS Code): ancho fijo para
+   que la columna de letras quede alineada aunque los nombres varien */
+.scm-code { width: 14px; flex: 0 0 auto; font-weight: 700; font-size: 11px; text-align: right; }
+.scm-file { color: var(--fg); overflow: hidden; text-overflow: ellipsis; }
+.scm-dir {
+  color: var(--dim);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.scm-dot { width: var(--icon-sm); flex: 0 0 auto; text-align: center; font-size: 11px; }
+.scm-dot.cp { color: var(--yellow, #d7ba7d); font-size: 9px; }
+/* el RAIL del grafo (29 jul): topologia de ramas por fila, sin gap entre
+   filas (las verticales de filas contiguas se tocan) */
+.scm-rail { flex: 0 0 auto; display: block; margin: -1.5px 0; }
+.scm-log .scm-row { padding-top: 0; padding-bottom: 0; }
+/* chips de refs sobre el commit: main (rama local/HEAD) · ☁ origin/main */
+.scm-chip {
+  flex: 0 0 auto;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 1.5;
+  padding: 0 5px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  color: var(--dim);
+}
+.scm-chip.local.head {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-weight: 600;
+}
+.scm-chip.remote { color: var(--dim); }
+.scm-msg { color: var(--fg); overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.scm-when { color: var(--dim); font-size: 10px; flex: 0 0 auto; }
+.scm-more { color: var(--dim); font-size: 10.5px; justify-content: center; }
+/* sin tope ni scroll propio: la lista fluye y el que scrollea es .scm-body
+   (ver ahi). El 30vh de antes era el parche de que .scm-body no tuviera flex. */
+.scm-log { min-height: 0; }
+
+#tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 6px 10px;
+  min-height: 0;
+  outline: none; /* foco programatico (para Escape), no navegacion por teclado */
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2.5px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.tree-row:hover { background: var(--panel); }
+/* multi-seleccion (⌘+clic/⇧+clic): tinte de acento, distinto de :hover y de
+   .ignored — mismo patron que .slash-row.sel */
+.tree-row.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.tree-row.selected:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.tree-row img.ficon { width: var(--icon); height: var(--icon); flex: 0 0 auto; }
+.tree-row .name { overflow: hidden; text-overflow: ellipsis; }
+.tree-row.ignored .name { color: var(--dim); opacity: 0.55; }
+.tree-row .badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0 4px;
+}
+.badge.M { color: var(--yellow); }
+.badge.U, .badge.A { color: var(--green); }
+.badge.D { color: var(--red); }
+.badge.R { color: var(--accent); }
+.badge.C { color: var(--red); }
+.badge.dirty-dot { color: var(--yellow); }
+
+/* ---------- fileview (visor universal dentro de un leaf) ---------- */
+.fileview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg);
+}
+.viewer-body {
+  flex: 1;
+  overflow: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.viewer-body pre.code {
+  padding: 10px 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.viewer-body .md {
+  padding: 14px 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  user-select: text;
+}
+.md h1, .md h2, .md h3 { margin: 14px 0 8px; line-height: 1.3; }
+.md h1 { font-size: 19px; } .md h2 { font-size: 16px; } .md h3 { font-size: 14px; }
+.md p, .md ul, .md ol { margin: 8px 0; }
+.md ul, .md ol { padding-left: 22px; }
+.md code {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0 4px;
+  font-family: ui-monospace, Menlo, monospace; font-size: 11.5px;
+}
+.md pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow-x: auto; margin: 8px 0; }
+.md pre code { border: none; background: none; padding: 0; }
+.md blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--dim); margin: 8px 0; }
+.md a { color: var(--accent); }
+.md table { border-collapse: collapse; margin: 8px 0; }
+.md th, .md td { border: 1px solid var(--border); padding: 4px 8px; }
+.md img { max-width: 100%; }
+
+.viewer-body .media-wrap {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  overflow: hidden;
+}
+.viewer-body video, .viewer-body audio { max-width: 100%; max-height: 100%; outline: none; }
+.viewer-body .img-stage {
+  height: 100%; width: 100%;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; cursor: zoom-in;
+}
+.viewer-body .img-stage img {
+  max-width: 100%; max-height: 100%;
+  transition: transform 80ms;
+}
+
+pre.diff { padding: 10px 12px; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; line-height: 1.5; }
+.diff .l-add { color: var(--green); }
+.diff .l-del { color: var(--red); }
+.diff .l-hunk { color: var(--accent); }
+.diff .l-meta { color: var(--dim); }
+
+.viewer-empty {
+  height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--dim); font-size: 12px; padding: 16px; text-align: center;
+}
+
+/* ---------- statusbar ---------- */
+#statusbar {
+  height: var(--status-h);
+  flex: 0 0 auto;
+  background: var(--status);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--dim);
+}
+#statusbar .seg { display: flex; align-items: center; gap: 5px; }
+#statusbar .branch { color: var(--accent); font-weight: 600; }
+#statusbar .spacer { flex: 1; }
+#statusbar .ram { font-variant-numeric: tabular-nums; }
+
+/* ---------- overlays (palette / finder / appearance / findbar) ---------- */
+.overlay-back {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+.overlay-card {
+  width: 560px;
+  max-height: 60vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.overlay-card input.query {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-size: 14px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--ui-font);
+}
+.overlay-list { overflow-y: auto; padding: 6px; }
+.overlay-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.overlay-row.hot { background: var(--bg); outline: 1px solid var(--border); }
+.overlay-row .hint { margin-left: auto; color: var(--dim); font-size: 11px; }
+.overlay-row img.ficon { width: var(--icon); height: var(--icon); }
+.overlay-row .dim { color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.overlay-row .search-preview { margin-left: auto; max-width: 45%; white-space: nowrap; }
+
+/* preview del dev server (overlay iframe) */
+.preview-card {
+  width: min(1200px, 92vw);
+  height: 82vh;
+  margin-top: -6vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.preview-url {
+  flex: 1;
+  color: var(--dim);
+  font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-frame { flex: 1; border: 0; background: #fff; }
+
+/* settings (⚙) */
+.settings-card { width: 520px; padding: 6px 0 0; max-height: 76vh; overflow-y: auto; }
+.settings-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px 4px;
+}
+.settings-head h3 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--dim);
+}
+.settings-section {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--dim); padding: 12px 16px 6px;
+}
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  padding: 0 16px;
+}
+.theme-card {
+  border: 1.5px solid;
+  border-radius: 9px;
+  padding: 9px 10px;
+  cursor: pointer;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.theme-card:hover { filter: brightness(1.15); }
+.theme-card .tc-row { display: flex; align-items: center; gap: 6px; }
+.theme-card .tc-dot { width: 9px; height: 9px; border-radius: 50%; }
+.theme-card .tc-name { font-size: 11.5px; font-weight: 600; }
+.theme-card .tc-line { height: 4px; border-radius: 2px; opacity: 0.55; }
+.theme-card .tc-line.short { width: 60%; }
+
+#titlebar .gear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  font-size: 15px;
+}
+/* toggle del arbol junto a los semaforos (T3/Arc-style, 28 jul 2026).
+   left: 76px = despues de los traffic lights del Overlay titlebar */
+#titlebar .tb-side-toggle {
+  position: absolute;
+  left: 76px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  color: var(--dim);
+}
+#titlebar .tb-side-toggle:hover { color: var(--accent); }
+/* boton ⊹ del picker armado: acento pulsante mientras Daniel señala */
+.leaf-action-btn.picking {
+  color: var(--accent);
+  animation: pick-pulse 1s ease-in-out infinite;
+}
+@keyframes pick-pulse { 50% { opacity: 0.45; } }
+.appearance-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 16px; font-size: 13px;
+}
+.appearance-row label { width: 150px; color: var(--dim); }
+.appearance-row select, .appearance-row input[type="number"] {
+  flex: 1; background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 8px; font-size: 12.5px; outline: none;
+  font-family: var(--ui-font);
+}
+.appearance-row .note { font-size: 10.5px; color: var(--dim); }
+.appearance-foot {
+  padding: 10px 16px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; align-items: center;
+  font-size: 11px; color: var(--dim);
+}
+.appearance-foot code {
+  background: var(--bg); padding: 1px 6px; border-radius: 4px;
+  cursor: pointer; border: 1px solid var(--border);
+}
+.appearance-foot code:hover { color: var(--accent); }
+
+/* findbar */
+#findbar {
+  position: fixed;
+  z-index: 60;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+}
+#findbar input {
+  background: transparent; border: none; outline: none;
+  color: var(--fg); font-size: 12.5px; width: 180px;
+  font-family: var(--ui-font);
+}
+
+/* context menu propio (jamas dialogos nativos: bloquean el webview) */
+.ctx-menu {
+  position: fixed;
+  z-index: 95;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  min-width: 180px;
+}
+.ctx-item {
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.ctx-item:hover { background: var(--bg); color: var(--accent); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+.ctx-item.danger:hover { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+
+/* ---------- Confirmacion de papelera (arbol) ----------
+   Los dialogos nativos estan PROHIBIDOS (bloquean el webview), asi que el
+   unico gesto destructivo de la app se confirma con esta tarjeta. */
+.trash-back {
+  position: fixed; inset: 0;
+  z-index: 96;                 /* sobre el ctx-menu (95) */
+  background: rgba(0, 0, 0, 0.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.trash-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+  padding: 20px 22px 16px;
+  width: min(420px, calc(100vw - 48px));
+}
+.trash-title { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+.trash-sub { font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.trash-errors {
+  margin-top: 12px;
+  max-height: 140px; overflow-y: auto;
+  font-size: 11.5px; color: var(--red);
+  font-family: var(--mono, ui-monospace, monospace);
+  line-height: 1.6;
+  word-break: break-all;
+}
+.trash-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.trash-btn {
+  font: inherit; font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.trash-btn:hover { border-color: var(--dim); }
+.trash-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trash-btn.danger { background: var(--red); border-color: var(--red); color: #fff; }
+.trash-btn.danger:hover { filter: brightness(1.1); }
+.trash-btn:disabled { opacity: 0.55; cursor: default; }
+
+/* scrollbars sobrios */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Modo Lectura de Bloques (Reader) ---------- */
+/* La capa que libera la prosa del grid: tipografia editorial serif (New York),
+   markdown rico, y lectura por voz con resaltado de palabra. Respeta el theme
+   via las CSS vars (paper y titanium). */
+.reader-back {
+  position: fixed; inset: 0;
+  background: var(--bg);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+.reader-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
+}
+.reader-meta {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0;
+  font-size: 12px;
+}
+.reader-cmd {
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 40vw;
+}
+.reader-badge {
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.reader-badge.ok { color: var(--green); }
+.reader-badge.bad { color: var(--red); }
+.reader-badge.run { color: var(--dim); }
+.reader-cwd {
+  color: var(--dim);
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 1px 9px;
+  white-space: nowrap;
+}
+.reader-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.reader-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--dim);
+  font-size: 12px;
+  font-family: var(--ui-font);
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.reader-btn:hover { color: var(--fg); background: var(--bg); }
+.reader-btn.on { color: var(--accent); border-color: var(--accent); }
+.reader-btn.play { font-size: 14px; padding: 4px 14px; }
+
+/* barra de lectura por voz: progreso por parrafos + controles centrados */
+.reader-speechbar {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px 8px;
+}
+/* en el chat la barra debe vivir SOBRE el espejo (MirrorView es absolute
+   z-5 y la tapaba — "me quitaste la barra de sonido", 20 jul). Es GLOBAL y
+   siempre montada (remontarla mata los nodos del TTS): solo se levanta en z. */
+.chat-main .reader-speechbar { position: relative; z-index: 6; }
+.reader-progress {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-size: 10px; color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 7px;
+}
+.reader-prognum { min-width: 40px; }
+.reader-proglabel { min-width: 40px; text-align: right; }
+.reader-progtrack {
+  flex: 1; height: 4px; border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.reader-progfill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 200ms;
+}
+.reader-controls { display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+.reader-scroll { flex: 1 1 auto; overflow-y: auto; }
+.reader-col {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 30px 28px 35vh;
+  /* ancla de las cajas de resaltado de la lectura por voz */
+  position: relative;
+  /* seleccionable a proposito: es texto para leer y copiar (el user-select:
+     none global de la app no aplica aqui) */
+  user-select: text;
+  -webkit-user-select: text;
+}
+.reader-empty { color: var(--dim); text-align: center; padding-top: 18vh; font-size: 13px; }
+
+/* --- tipografia editorial (serif del sistema, feel de lector de libros) --- */
+.reader-doc {
+  font-family: ui-serif, "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.68;
+  color: var(--fg);
+}
+.reader-doc p { margin: 0 0 0.85em; }
+.reader-doc p.reader-p { white-space: pre-wrap; }
+.reader-doc h1, .reader-doc h2, .reader-doc h3, .reader-doc h4 {
+  line-height: 1.3;
+  margin: 1.4em 0 0.45em;
+  color: var(--fg);
+}
+.reader-doc h1:first-child, .reader-doc h2:first-child, .reader-doc h3:first-child { margin-top: 0; }
+.reader-doc h1 { font-size: 26px; }
+.reader-doc h2 { font-size: 21px; }
+.reader-doc h3 { font-size: 18px; }
+.reader-doc h4 { font-size: 17px; }
+.reader-doc strong { font-weight: 650; }
+.reader-doc em { color: var(--fg); opacity: 0.85; }
+.reader-doc ul, .reader-doc ol { margin: 0 0 0.85em; padding-left: 1.5em; }
+.reader-doc li { margin: 0.18em 0; }
+.reader-doc blockquote {
+  margin: 0 0 0.85em;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+  color: var(--dim);
+  font-style: italic;
+}
+.reader-doc hr { border: none; border-top: 1px solid var(--border); margin: 1.4em 0; }
+.reader-doc a { color: var(--accent); text-underline-offset: 3px; }
+.reader-doc img { max-width: 100%; border-radius: 10px; }
+
+/* inline code: pill mono */
+.reader-doc code {
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  font-size: 0.78em;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.1em 0.45em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* tablas renderizadas de verdad */
+.reader-doc table {
+  border-collapse: collapse;
+  margin: 0 0 1.1em;
+  font-size: 14px;
+  font-family: var(--ui-font);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+  width: fit-content;
+}
+.reader-doc th {
+  text-align: left;
+  font-weight: 600;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.reader-doc td { padding: 7px 14px; border-bottom: 1px solid var(--border); }
+.reader-doc tr:last-child td { border-bottom: none; }
+.reader-doc tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+
+/* code blocks: caja con header (lenguaje + copiar). Fondo SIEMPRE oscuro:
+   los tokens de hljs (github-dark, importado global) estan pensados para
+   oscuro, y el codigo-sobre-oscuro lee bien tambien en theme paper. */
+.reader-code {
+  margin: 0 0 1.1em;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #16181d;
+}
+.reader-code-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 12px;
+  font-family: var(--ui-font);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8b8f98;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.reader-copybtn {
+  background: transparent; border: none; cursor: pointer;
+  color: #8b8f98; font-size: 11px; font-family: var(--ui-font);
+  text-transform: none; letter-spacing: 0;
+  padding: 2px 6px; border-radius: 6px;
+}
+.reader-copybtn:hover { color: #e6e8ec; background: rgba(255, 255, 255, 0.06); }
+.reader-copybtn.ok { color: #4ec96a; }
+.reader-code pre {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: transparent;
+}
+.reader-code pre code {
+  background: transparent; border: none; padding: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #d7d9de;
+  white-space: pre;
+}
+
+/* resaltado de la palabra que suena (lectura por voz): cajas overlay reales
+   posicionadas por Range.getClientRects — NO la Highlight API, que WKWebView
+   pinta de forma caprichosa (user-select, snapshots que no la componen).
+   Una caja se ve SIEMPRE: en pantalla, en capturas y en cualquier theme. */
+.reader-wordhl {
+  position: absolute;
+  background: rgba(255, 145, 1, 0.38);
+  border-radius: 3px;
+  pointer-events: none;
+  transition: left 80ms linear, top 80ms linear, width 80ms linear;
+}
+
+/* ---------- Chat nativo con el agente (vista de conversacion rica) ---------- */
+/* chat-first: el chat es la superficie HOME, no un modal. Vive DEBAJO del
+   titlebar (el chrome con el toggle de superficie queda siempre visible);
+   sigue siendo un overlay sobre el taller: #term-pool ni se entera. */
+.chat-back { top: var(--titlebar-h); }
+.chat-col { display: flex; flex-direction: column; gap: 18px; padding-bottom: 12vh; }
+
+/* ── LECTOR POSADO EN SU PANEL (22 jul 2026, pedido de Daniel: "que esa vista
+   SOLO se vea en el espacio que ocupa la terminal, sin quitarme las terminales
+   ni el arbol") ────────────────────────────────────────────────────────────
+   El lector deja de tapar la app: toma el rect EXACTO del panel de su terminal
+   (mismo anclaje que el Peek) y el taller sigue visible y usable. Esconder
+   rail/arbol es decision de Daniel (⌘B arbol · ⌘⌥B rail), no de la app.
+   left/top/width/height llegan INLINE desde usePanelBox (ConvReader.tsx); sin
+   rect medible la clase no se aplica y el lector cae a pantalla completa.
+   NO se toca `.reader-back` a secas: esa la comparte el Modo Lectura de
+   Bloques (Reader.tsx), que SIGUE siendo pantalla completa. */
+.reader-back.panel {
+  /* mata el inset:0 de .reader-back y el top de .chat-back (inline manda) */
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px; /* mismo radio que .leaf-frame: encaja en el hueco */
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  /* RESPONSIVO POR CONTENEDOR, no por viewport: el lector puede vivir en un
+     cuarto de pantalla y las medidas de la superficie completa lo desbordan */
+  container-type: inline-size;
+}
+/* el chat asumia pantalla: 300px de minimo desbordan un panel angosto, y el
+   colchon inferior en vh no tiene sentido dentro de una caja */
+.reader-back.panel .chat-main { min-width: 0; }
+.reader-back.panel .reader-col.chat-col { padding: 20px 22px 90px; }
+.reader-back.panel .reader-empty { padding-top: 40px; }
+
+/* ── ESPEJO DE PANTALLA (22 jul 2026): la conversacion de un CLI agentico sin
+   transcript (kimi, codex, aider…). Es salida de TERMINAL, con su alineacion
+   y sus cajas de TUI: va monoespaciada, no en la serif editorial del lector.
+   `pre-wrap` + `anywhere` para que el panel no scrollee de lado nunca. */
+.screen-mirror {
+  margin: 0;
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+@container (max-width: 720px) {
+  /* columna al ancho real del panel: el centrado a 60rem ya no aplica */
+  .reader-back.panel .chat-main { --chat-col: 100%; --chat-gutter: 12px; }
+  .reader-back.panel .reader-col.chat-col { padding: 14px 14px 80px; gap: 14px; }
+  .reader-back.panel .chat-doc { font-size: 15px; }
+  .reader-back.panel .chat-user-bubble { max-width: 92%; font-size: 13px; }
+  .reader-back.panel .screen-mirror { font-size: 11.5px; }
+}
+@container (max-width: 460px) {
+  .reader-back.panel .reader-col.chat-col { padding: 10px 10px 72px; gap: 12px; }
+  .reader-back.panel .chat-doc { font-size: 14px; }
+  .reader-back.panel .chat-composer.codex {
+    padding: 8px 8px 6px 12px;
+    border-radius: 14px;
+  }
+  /* chips que sobran cuando no hay ancho: la rama y el effort son los primeros
+     en caer (ctx% y modelo son los que Daniel mira) */
+  .reader-back.panel .cbar-chip.sl-git,
+  .reader-back.panel .cbar-chip.sl-effort { display: none; }
+  .reader-back.panel .screen-mirror { font-size: 11px; line-height: 1.4; }
+}
+
+.chat-user { display: flex; justify-content: flex-end; }
+/* burbuja estilo Claude iOS (Arbrain): superficie neutra apenas elevada,
+   sin borde duro — el contenido es el protagonista */
+.chat-user-bubble {
+  max-width: 78%;
+  background: color-mix(in srgb, var(--fg) 10%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--fg) 5%, transparent);
+  border-radius: 18px 18px 6px 18px;
+  padding: 10px 14px;
+  font-family: var(--ui-font);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.chat-assistant { min-width: 0; }
+/* ancla de las cajas de resaltado de la voz (position relative del container) */
+.chat-doc { position: relative; }
+.chat-error {
+  color: var(--red);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-top: 6px;
+}
+/* --- layout: sidebar de conversaciones + columna principal --- */
+.chat-layout { flex: 1 1 auto; display: flex; min-height: 0; }
+.chat-main {
+  flex: 1 1 auto; display: flex; flex-direction: column;
+  min-width: 300px; position: relative;
+  /* UN SOLO numero manda el ancho del chat: la columna de texto Y el gutter
+     de barras (composer/notice/adjuntos/slash) derivan de aqui, asi la
+     simetria (mensajes + input + statusline) queda blindada por construccion.
+     60rem = densidad tipo app de escritorio de Claude (pedido de Daniel 19 jul,
+     "mas densa, replica lo de Anthropic"): mas CPL que el ideal de 75, pero es
+     su llamada — se nudge en esta sola linea. El Reader de libros sigue en 46rem. */
+  --chat-col: 60rem;
+  --chat-gutter: max(16px, calc((100% - var(--chat-col)) / 2 + 28px));
+}
+/* la columna del CHAT se ensancha; el Reader de libros sigue en 46rem
+   (0,2,0 gana a .reader-col sin importar el orden) */
+.reader-col.chat-col { max-width: var(--chat-col); }
+
+/* --- ESPEJO: sesion de terminal renderizada como conversacion (solo lectura).
+       Overlay sobre chat-main: la conversacion real queda intacta debajo. --- */
+.chat-mirror {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.chat-mirror-cut {
+  color: var(--dim);
+  font-size: 12px;
+  text-align: center;
+  padding: 10px 0 18px;
+  font-style: italic;
+}
+.chat-mirror-wake { margin: 0 auto; padding: 8px 16px; }
+
+/* boton espejo ✦ en filas de terminal del rail (aparece al hover) */
+.chat-convitem:hover 
+/* --- visor de archivos DEL CHAT (chat-first: ver sin salir de la conversacion) --- */
+.chat-viewer {
+  flex: 0 1 auto;
+  min-width: 260px;
+  display: flex; flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  min-height: 0;
+}
+.chat-viewer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+  flex: 0 0 auto;
+}
+.chat-viewer-name {
+  font-size: 12px; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+.chat-tree {
+  flex: 0 1 auto;
+  min-width: 150px;
+  display: flex; flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--rail);
+  min-height: 0;
+}
+
+/* --- sash de resize estilo VSCode (hit-area montada sobre el borde) --- */
+.pane-resizer {
+  flex: 0 0 6px;
+  margin: 0 -3px;
+  position: relative;
+  z-index: 50;
+  cursor: col-resize;
+  background: transparent;
+  /* highlight con delay al hover, como el sash de VSCode */
+  transition: background 0.12s ease 0.2s;
+}
+.pane-resizer:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.pane-resizer.active {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: none;
+}
+body.resizing-x, body.resizing-x * { cursor: col-resize !important; }
+body.resizing-x { user-select: none; -webkit-user-select: none; }
+.chat-side-wrap { flex: 0 0 auto; display: flex; min-height: 0; min-width: 0; }
+.chat-side {
+  flex: 1 1 auto;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  min-height: 0;
+  min-width: 0;
+}
+/* Rail del MODO WARP: solo terminales (Rail.tsx::TermRail) */
+.termrail-list {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 0 8px 10px;
+}
+.termrail-empty { color: var(--dim); font-size: 12px; text-align: center; margin-top: 18px; }
+
+/* ── VITRINA DE HISTORIAL (30 jul 2026, estilo Claude Desktop) ───────────────
+   UNA columna con un solo scroll: busqueda arriba, Activas (las de siempre),
+   y el historial del disco agrupado por dia. Misma gramatica de filas
+   (.chat-convitem); las historicas son mas compactas y calladas. */
+.rail-searchrow {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 10px 8px;
+}
+.rail-search {
+  flex: 1 1 auto; min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--fg) 3%, var(--bg));
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.rail-search::placeholder { color: var(--dim); }
+.rail-search:focus { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+/* boton de FILTROS del historial (popover agrupar/ordenar/proyecto) */
+.rail-filter {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.rail-filter svg { width: 15px; height: 15px; }
+.rail-filter:hover, .rail-filter.open { color: var(--fg); border-color: color-mix(in srgb, var(--fg) 20%, var(--border)); }
+.rail-filter.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.rail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+/* dentro del scroll unico, la lista de activas no scrollea por su cuenta */
+.rail-scroll .termrail-list { flex: 0 0 auto; overflow: visible; }
+
+/* header de seccion COLAPSABLE (chevron animado, estilo Claude Desktop) */
+.hist-headrow {
+  all: unset;
+  box-sizing: border-box;
+  display: flex; align-items: center; gap: 5px;
+  width: 100%;
+  padding: 10px 12px 4px;
+  color: var(--dim);
+  font-family: var(--ui-font);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.hist-headrow:hover { color: var(--fg); }
+.hist-chev {
+  width: 11px; height: 11px;
+  flex: 0 0 auto;
+  transition: transform 0.18s ease;
+}
+.hist-headrow.closed .hist-chev { transform: rotate(-90deg); }
+.hist-count {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0;
+  color: var(--dim);
+  opacity: 0.8;
+}
+/* colapso SUAVE sin medir alturas: grid-template-rows 1fr→0fr */
+.hist-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.22s ease;
+}
+.hist-body.closed { grid-template-rows: 0fr; }
+.hist-bodyin { overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+
+/* popover de filtros: entra con fade + lift (la piel base es .histmenu;
+   los overrides viven AL FINAL del archivo — el legacy va despues de este
+   bloque y ganaba la cascada en background) */
+.hist-pop { animation: histpop 0.14s ease; }
+@keyframes histpop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.histmenu-head {
+  padding: 8px 10px 3px;
+  color: var(--dim);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.hist-popcheck {
+  width: 14px; flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 11px;
+}
+.histmenu-row { color: var(--dim); font-size: 12px; cursor: pointer; transition: background 0.12s ease, color 0.12s ease; }
+.histmenu-row:hover { background: var(--bg); color: var(--fg); }
+.histmenu-row.on { color: var(--fg); }
+.hist-rail { display: flex; flex-direction: column; gap: 2px; padding: 0 8px 12px; }
+.hist-section { display: flex; flex-direction: column; gap: 2px; }
+.chat-convitem.hist { padding: 6px 9px; }
+.chat-convitem.hist .chat-convtitle {
+  font-size: 12px;
+  /* DOS lineas y no una (critico A/B ronda 3): el sustantivo que distingue
+     una conversacion de otra suele caer despues del corte de una linea
+     ("Investigar gestion de historial de conve…") — escanear el historial
+     exige leerlo. Clamp a 2 con elipsis; las ACTIVAS quedan en 1 (su titulo
+     es corto y su fila ya carga subtitulo de proceso). */
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.35;
+}
+.chat-convitem.hist .chat-convrow.sub { padding-left: 0; }
+.hist-pin {
+  flex: 0 0 auto;
+  width: 16px; height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--dim);
+  opacity: 0;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.hist-pin svg { width: 13px; height: 13px; }
+.chat-convitem.hist:hover .hist-pin { opacity: 0.7; }
+.hist-pin:hover { opacity: 1; color: var(--fg); }
+.hist-pin.on { opacity: 0.9; color: var(--accent); }
+.hist-more {
+  margin: 6px 12px 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: none;
+  color: var(--dim);
+  font-family: var(--ui-font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.hist-more:hover { color: var(--fg); border-color: color-mix(in srgb, var(--fg) 20%, var(--border)); }
+.hist-empty { color: var(--dim); font-size: 11px; text-align: center; padding: 10px 0 14px; }
+
+/* barra de CONTINUAR del espejo (lector sin terminal dueña) */
+.chat-composer.hist-continue { gap: 6px; }
+.hist-continue-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+}
+.hist-continue-hint {
+  color: var(--dim);
+  font-family: var(--ui-font);
+  font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hist-continue-btn {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 11px;
+  cursor: pointer;
+}
+.hist-continue-btn:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.chat-newconv {
+  margin: 10px 10px 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-top-color: color-mix(in srgb, var(--fg) 14%, var(--border));
+  border-radius: 12px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg) 6%, var(--bg)),
+    color-mix(in srgb, var(--fg) 2%, var(--bg))
+  );
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15), 0 6px 18px rgba(0, 0, 0, 0.12);
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.chat-newconv:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  transform: translateY(-1px);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.18), 0 10px 26px rgba(0, 0, 0, 0.2);
+}
+.chat-newconv:active { transform: translateY(0); }
+/* TEMPORAL bro (2026-07-19): selector de espacio de cuenta "Tú / bro-claude".
+   Pill segmentada compacta (misma gramatica que el badge de workspace); vive
+   bajo el boton de nueva conv, en el header compartido de ambas superficies. */
+.acct-seg {
+  display: flex;
+  margin: 0 10px 4px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 3%, var(--bg));
+}
+.acct-seg-btn {
+  all: unset;
+  flex: 1 1 0;
+  text-align: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--ui-font);
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.acct-seg-btn:hover { color: var(--fg); }
+.acct-seg-btn.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* header del historial: label + boton de filtros (estilo app de Claude) */
+.chat-histhead {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px 2px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--dim);
+  font-family: var(--ui-font);
+}
+/* ── sesiones largas: no pintar lo fuera de viewport + navegacion ── */
+.chat-col .chat-user,
+.chat-col .chat-assistant {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 140px;
+}
+.chat-loadmore {
+  display: block;
+  margin: 6px auto 14px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-family: var(--ui-font);
+  cursor: pointer;
+}
+.chat-loadmore:hover { color: var(--fg); border-color: var(--muted); }
+.chat-jump {
+  position: absolute;
+  right: 26px;
+  bottom: 150px;
+  z-index: 6;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+.chat-jump:hover { color: var(--fg); border-color: var(--accent); }
+
+/* ── radar de agentes de fondo (feed del chat) ── */
+.agent-radar {
+  margin: 4px var(--chat-gutter, 16px) 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.agent-radar .radar-head { color: var(--dim); font-size: 10.5px; }
+.agent-radar .radar-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.agent-radar .radar-row.done { opacity: 0.55; }
+.agent-radar .radar-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  flex: none; align-self: center;
+  animation: radar-pulse 1.6s ease-in-out infinite;
+}
+.agent-radar .radar-dot.ok { background: #2fbf71; animation: none; }
+.agent-radar .radar-desc {
+  color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agent-radar .radar-meta { flex: none; }
+.agent-radar .radar-tool {
+  color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 34%;
+  margin-left: auto;
+}
+@keyframes radar-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
+
+.hist-filterbtn {
+  all: unset;
+  display: inline-flex; align-items: center;
+  padding: 3px 5px; border-radius: 6px;
+  color: var(--dim); cursor: pointer;
+}
+.hist-filterbtn:hover { color: var(--fg); background: var(--bg); }
+.hist-filterbtn.on { color: var(--accent); }
+/* separador de grupo: Hoy · Ayer · 13 jul · Anteriores (o proyecto).
+   Es un TOGGLE (17 jul): click esconde/muestra el grupo entero. */
+.chat-grouphead {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 9px 9px 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--dim);
+  opacity: 0.75;
+  font-family: var(--ui-font);
+  cursor: pointer;
+}
+.chat-grouphead:hover { opacity: 1; color: var(--fg); }
+.chat-groupchev { font-size: 8px; width: 10px; flex: 0 0 auto; }
+.chat-groupcount { opacity: 0.8; text-transform: none; letter-spacing: 0; }
+/* variante del rail del taller (misma lista, columna angosta) */
+.chat-histempty {
+  padding: 14px 10px;
+  font-size: 11.5px;
+  color: var(--dim);
+  font-family: var(--ui-font);
+}
+
+/* popover de filtros: facetas accordion (valor actual en acento) */
+.histmenu {
+  position: fixed;
+  width: 236px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+  z-index: 96;
+  font-family: var(--ui-font);
+}
+.histmenu-row {
+  all: unset;
+  box-sizing: border-box;
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--fg);
+}
+.histmenu-row:hover { background: var(--bg); }
+.histmenu-row > span:first-child { flex: 1 1 auto; }
+.histmenu-val { color: var(--accent); font-size: 11.5px; }
+.histmenu-chev { color: var(--dim); font-size: 9px; }
+.histmenu-row.clear {
+  justify-content: center;
+  margin-top: 3px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  color: var(--dim);
+  font-size: 11.5px;
+}
+.histmenu-row.clear:hover { color: var(--fg); }
+.histmenu-opts { display: flex; flex-direction: column; padding: 1px 4px 6px 14px; }
+.histmenu-opt {
+  all: unset;
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--dim);
+}
+.histmenu-opt:hover { background: var(--bg); color: var(--fg); }
+.histmenu-opt.sel { color: var(--fg); }
+.histmenu-check { margin-left: auto; color: var(--accent); font-size: 11px; }
+
+.chat-convlist { flex: 1 1 auto; overflow-y: auto; padding: 2px 6px 10px; }
+/* item estilo cliente de mensajeria: titulo+hora arriba, snippet abajo */
+.chat-convitem {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  cursor: pointer;
+  color: var(--dim);
+  font-family: var(--ui-font);
+  font-size: 12px;
+}
+.chat-convitem:hover { background: var(--bg); color: var(--fg); }
+/* hover/active SUAVES en todo el rail (pedido "smooth ui", 30 jul) */
+.chat-convitem { transition: background 0.13s ease, color 0.13s ease; }
+
+/* ── REORDENAR EL RAIL arrastrando (22 jul 2026, estilo VSCode) ──────────────
+   La fila que viaja se atenua y el hueco se marca con una linea de acento
+   ENTRE filas (no un recuadro): dice "va aqui" sin tapar el contenido.
+   `position: relative` ancla los ::before/::after; el borde de 1px se compensa
+   con margin negativo para que la lista no salte al aparecer la linea. */
+.chat-convitem { position: relative; }
+.chat-convitem.dragging { opacity: 0.4; }
+.chat-convitem.drop-before::before,
+.chat-convitem.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.chat-convitem.drop-before::before { top: -2px; }
+.chat-convitem.drop-after::after { bottom: -2px; }
+/* mientras se arrastra, el cursor manda en TODA la lista (si no, cada fila
+   pelea por su propio cursor y parpadea) */
+body.dragging .termrail-list { cursor: grabbing; }
+.chat-convitem.active { background: var(--bg); color: var(--fg); }
+.chat-convrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* el snippet se alinea con el titulo (dot 6px + gap 6px) */
+.chat-convrow.sub { padding-left: 12px; }
+.chat-convtitle {
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* block y NO flex (fix 30 jul, señalado por el critico A/B): con display
+     flex el texto es un item anonimo y text-overflow JAMAS pinta la elipsis —
+     los titulos se cortaban a media palabra sin señal de que siguen. Los dos
+     usos reales (Rail) son texto puro, nada necesitaba el flex. */
+  display: block;
+  font-weight: 500;
+}
+.chat-convitem.active .chat-convtitle { color: var(--fg); }
+.chat-convtime { flex: 0 0 auto; font-size: 10px; color: var(--dim); }
+.chat-convsnip {
+  flex: 1 1 auto; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px; color: var(--dim); opacity: 0.85;
+}
+/* globo del rail (29 jul): esta conversacion tiene un navegador abierto. El
+   ala solo se ve dentro de la suya, asi que sin esta marca los demas no
+   existirian para Daniel. Espejo, no boton. */
+.chat-convglobe {
+  flex: 0 0 auto;
+  display: flex;
+  color: var(--dim);
+  opacity: 0.7;
+}
+.chat-convglobe svg { width: var(--icon-sm); height: var(--icon-sm); }
+.chat-convitem.active .chat-convglobe { color: var(--accent); opacity: 1; }
+/* ── semaforo de conversacion (17 jul, pedido de Daniel): UN dot sutil a la
+   izquierda sustituye a todos los avisos textuales de atencion.
+   gris = leida · amarillo = escribiendo · azul = terminada sin leer ·
+   morado = te pregunta / pide input. Respira lento, nada estridente. */
+.conv-status {
+  flex: 0 0 auto;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--dim) 35%, transparent); /* leida */
+}
+.conv-status.st-working {
+  background: var(--yellow);
+  animation: conv-breathe 1.8s ease-in-out infinite;
+}
+.conv-status.st-asking {
+  background: #a78bfa;
+  animation: conv-breathe 1.8s ease-in-out infinite;
+}
+.conv-status.st-unread { background: #5f9edb; }
+@keyframes conv-breathe { 50% { opacity: 0.35; } }
+.chat-convdel {
+  flex: 0 0 auto;
+  background: transparent; border: none;
+  color: var(--dim); font-size: 10px;
+  padding: 2px 4px; border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+}
+.chat-convitem:hover .chat-convdel { opacity: 1; }
+.chat-convdel:hover { color: var(--red); background: var(--panel); }
+.chat-convdel.kill { font-size: 11px; }
+/* estrella de conversacion FIJADA — sutil, entonada con el acento */
+.conv-pin {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--accent) 60%, var(--dim));
+  opacity: 0.9;
+}
+
+/* cuerpo del mensaje: texto + tools intercalados. Ancla del resaltado TTS. */
+.chat-body { position: relative; }
+
+/* --- tool calls expandibles (estilo Arbrain / Claude Code) --- */
+.chat-tool {
+  margin: 4px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.chat-tool-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+.chat-tool-diff {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--dim);
+  font-family: var(--ui-font);
+  font-size: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chat-tool-diff:hover { color: var(--accent); border-color: var(--accent); }
+.chat-tool-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex: 0 0 auto;
+}
+.chat-tool-dot.ok { background: var(--green); }
+.chat-tool-dot.err { background: var(--red); }
+.chat-tool-dot.run { background: var(--accent); animation: chat-pulse 1.1s ease-in-out infinite; }
+.chat-tool-name {
+  font-family: var(--ui-font);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg);
+  flex: 0 0 auto;
+}
+.chat-tool-sum {
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  font-size: 11px;
+  color: var(--dim);
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-tool-chev { color: var(--dim); font-size: 10px; flex: 0 0 auto; }
+.chat-tool-detail { border-top: 1px solid var(--border); }
+.chat-tool-pre {
+  margin: 0;
+  padding: 8px 12px;
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.chat-tool-pre.out {
+  color: var(--dim);
+  border-top: 1px dashed var(--border);
+}
+.chat-tool-pre.out.err { color: var(--red); }
+
+/* --- adjuntos (chips) --- */
+.chat-attach-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 8px;
+}
+.chat-attach-row.pending {
+  margin: 0;
+  padding: 8px var(--chat-gutter) 0;
+  width: 100%;
+}
+.chat-attach-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--ui-font);
+  font-size: 11px;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  background: var(--panel);
+  max-width: 300px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-attach-chip.sent { background: transparent; color: inherit; font-size: 10.5px; }
+.chat-attach-x {
+  background: transparent; border: none;
+  color: var(--dim); font-size: 10px;
+  cursor: pointer; padding: 0 2px;
+}
+.chat-attach-x:hover { color: var(--red); }
+/* adjuntos IMAGEN (estilo Arbrain): thumbnail real 64px + ✕ flotante */
+.chat-attach-thumb { position: relative; display: inline-block; cursor: pointer; }
+.chat-attach-chip[role="button"] { cursor: pointer; }
+.chat-attach-thumb img {
+  display: block;
+  width: 64px; height: 64px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+/* los bytes llegan por IPC (no por el asset protocol), asi que hay un frame o
+   dos sin imagen: un hueco del tamaño final que respira, en vez de que la fila
+   salte cuando entra la miniatura */
+.chat-attach-thumb-load {
+  display: block;
+  width: 64px; height: 64px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--fg) 6%, var(--bg));
+  animation: conv-breathe 1.4s ease-in-out infinite;
+}
+.chat-attach-thumb-x {
+  position: absolute; top: -6px; right: -6px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: color-mix(in srgb, var(--fg) 75%, transparent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; line-height: 1;
+  cursor: pointer; padding: 0;
+}
+.chat-attach-thumb-x:hover { color: var(--fg); background: rgba(214, 66, 66, 0.85); }
+
+/* ── IMAGENES DEL HISTORIAL (26 jul 2026) ─────────────────────────────────
+   Las que Daniel pego en el TUI viven como base64 DENTRO del transcript;
+   readTail las stripea, asi que el thumbnail nace como placeholder y se
+   rellena cuando entra en pantalla (IntersectionObserver → transcript_image). */
+.chat-attach-thumb.tx.loading img { opacity: 0; }
+.chat-img-ph {
+  display: flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  font-size: 18px;
+  opacity: 0.55;
+}
+
+/* clip 📎 del composer: mismo peso visual que los chips de la barra */
+.cbar-clip {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  margin-right: 2px;
+  border: none; background: transparent; padding: 0;
+  border-radius: 7px;
+  color: color-mix(in srgb, var(--fg) 55%, transparent);
+  cursor: pointer;
+}
+.cbar-clip:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+/* arrastrando un archivo del Finder sobre el lector */
+.reader-back.dropping {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: -6px;
+}
+
+/* ── VISOR DE IMAGEN (Lightbox) ───────────────────────────────────────────
+   Overlay sobre el panel del lector, con salida obvia (Esc / click fuera / ✕).
+   Una imagen se mira dos segundos: no merece una pestaña que despues haya que
+   ir a cerrar con ⌘W. */
+.lightbox-back {
+  position: absolute; inset: 0;
+  z-index: 90;
+  display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: lb-in 120ms ease-out;
+}
+@keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
+.lightbox-bar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+.lightbox-name {
+  flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lightbox-btn {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  color: var(--fg);
+  border-radius: 7px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.lightbox-btn:hover { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.lightbox-stage {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  overflow: auto;
+  padding: 8px 18px 22px;
+  cursor: zoom-in;
+}
+.lightbox-stage img {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  transition: transform 110ms ease-out;
+}
+
+/* --- dictado por voz --- */
+
+.chat-notice {
+  margin: 0;
+  width: 100%;
+  padding: 6px var(--chat-gutter) 0;
+  color: var(--red);
+  font-family: var(--ui-font);
+  font-size: 11.5px;
+}
+/* confirmaciones ("/model aplicado"): informativas, no alarma roja */
+.chat-notice.ok { color: var(--green); opacity: 0.85; }
+
+/* chip de sistema en el feed (maquinaria de slash-commands del transcript):
+   "/model opus" · "Set model to Opus 4.8" — sutil, mono, sin burbuja */
+.chat-sysline {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--dim);
+  opacity: 0.85;
+  padding: 0 0 6px;
+}
+
+/* overlay al arrastrar archivos encima */
+.chat-dropzone {
+  position: absolute; inset: 0;
+  z-index: 5;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  margin: 14px;
+  pointer-events: none;
+  color: var(--accent);
+  font-family: var(--ui-font);
+  font-size: 15px;
+  font-weight: 600;
+}
+/* pie del mensaje estilo Arbrain: iconos sutiles que aparecen al hover
+   (si la voz esta activa, el pie se queda visible) */
+.chat-actions {
+  display: flex; align-items: center; gap: 2px; margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.chat-assistant:hover .chat-actions,
+.chat-user:hover .chat-actions,
+.chat-actions:focus-within,
+.chat-actions:has(.on) { opacity: 1; }
+/* tus mensajes: burbuja + pie de copiar en columna, pegados a la derecha */
+.chat-user-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 78%;
+  min-width: 0;
+}
+.chat-user-col .chat-user-bubble { max-width: 100%; }
+.chat-actions.user { margin-top: 2px; }
+.chat-actbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: color-mix(in srgb, var(--dim) 80%, transparent);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.chat-actbtn:hover { color: var(--dim); background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.chat-actbtn.on { color: var(--accent); }
+.chat-actbtn.ok { color: #34d399; }
+
+/* EL ADELANTO (28 jul): el bloque que el agente escribe AHORA, leido de la
+   pantalla mientras su linea del jsonl todavia no existe. Deliberadamente SIN
+   estilo propio: misma tipografia, mismo ancho y mismos margenes que un
+   mensaje real, para que al aterrizar el markdown definitivo no haya flash. */
+.chat-col .chat-assistant.ghost {
+  /* los mensajes normales se saltan el render fuera de viewport; el fantasma
+     crece cada 200ms y una estimacion de alto equivocada le daria tumbos al
+     scroll pegado al fondo */
+  content-visibility: visible;
+  contain-intrinsic-block-size: auto;
+}
+/* cursor al final: lo UNICO que dice "esto todavia se esta escribiendo" */
+.chat-assistant.ghost .chat-doc > :last-child::after {
+  content: "▍";
+  margin-left: 2px;
+  color: var(--accent);
+  animation: ghost-caret 1.1s steps(2, start) infinite;
+}
+@keyframes ghost-caret {
+  50% { opacity: 0; }
+}
+
+/* typing indicator EN el feed (17 jul: en la posicion donde nace la
+   respuesta, como una app de mensajeria — no abajo). Sutil, mono, dim. */
+.chat-typing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0 16px;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+/* /usage nativo: panel de limites del plan (mismas barras que la TUI) */
+.usage-panel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100vw - 60px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  padding: 16px 18px 14px;
+  font-family: var(--ui-font);
+  z-index: 97;
+}
+.usage-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--dim);
+  margin-bottom: 12px;
+}
+.usage-empty { font-size: 12px; color: var(--dim); padding: 6px 0 4px; }
+.usage-row { margin-bottom: 12px; }
+.usage-row:last-child { margin-bottom: 2px; }
+.usage-lbl {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--fg);
+  margin-bottom: 5px;
+}
+.usage-pct { font-family: "SF Mono", ui-monospace, monospace; font-size: 11.5px; color: var(--dim); }
+.usage-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+  overflow: hidden;
+}
+.usage-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 75%, var(--fg));
+}
+.usage-fill.hot { background: var(--red); }
+.usage-reset { font-size: 10.5px; color: var(--dim); opacity: 0.85; margin-top: 4px; }
+
+/* SIMETRIA (17 jul): input + enviar alineados a LA MISMA columna centrada que
+   los mensajes (46rem) — la barra sigue siendo full-width (fondo/borde), el
+   contenido se centra con padding dinamico */
+.chat-inputbar {
+  position: relative; /* ancla del slash-menu */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px var(--chat-gutter)
+    calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+/* la variante Codex flota: tarjeta sobre el fondo, sin banda (el espejo
+   conserva la suya — su composer no es .codex) */
+.chat-inputbar:has(.chat-composer.codex) {
+  border-top: none;
+  background: transparent;
+}
+
+/* ── SLASH COMMANDS (17 jul): menu sobre el input, como la TUI del CLI ── */
+.slash-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: var(--chat-gutter);
+  right: var(--chat-gutter);
+  width: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  padding: 5px;
+  z-index: 5;
+}
+.slash-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.slash-row.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.slash-name {
+  flex: 0 0 auto;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  color: var(--accent);
+}
+.slash-desc {
+  flex: 1 1 auto;
+  font-size: 11.5px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── gestion de conversaciones (menu contextual + rename + archivadas) ── */
+.convmenu-back {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+}
+.convmenu {
+  position: fixed;
+  min-width: 170px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.convmenu button {
+  all: unset;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--fg);
+  cursor: pointer;
+}
+.convmenu button:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.convmenu button.danger { color: #e5534b; }
+.convmenu button.danger:hover { background: color-mix(in srgb, #e5534b 14%, transparent); }
+.chat-convedit {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12.5px;
+  padding: 3px 7px;
+  outline: none;
+}
+.chat-archtoggle {
+  all: unset;
+  display: block;
+  padding: 8px 12px 4px;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  cursor: pointer;
+}
+.chat-archtoggle:hover { color: var(--fg); }
+.chat-convitem.archived { opacity: 0.6; }
+/* ── COMPOSER estilo Arbrain (pantalla titanium): textarea + enviar viven
+   DENTRO de una sola superficie redondeada con gloss interno y focus ring ── */
+.chat-composer {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 7px 7px 18px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--fg) 7%, var(--bg)),
+    color-mix(in srgb, var(--fg) 3%, var(--bg))
+  );
+  border: 1px solid var(--border);
+  border-top-color: color-mix(in srgb, var(--fg) 20%, var(--border));
+  border-radius: 26px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 10px 28px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 color-mix(in srgb, var(--fg) 7%, transparent),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  transition: border-color 0.3s ease;
+}
+.chat-composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+/* variante Codex (18 jul): columna — adjuntos + textarea + fila de controles
+   DENTRO de la tarjeta; el orbe vive en la fila, anclado a la derecha */
+.chat-composer.codex {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 10px 10px 8px 16px;
+  border-radius: 18px;
+}
+.chat-composer.codex .chat-attach-row.pending {
+  margin: 0;
+  padding: 2px 0 8px;
+  width: auto;
+}
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 4px;
+}
+.cbar-spacer { flex: 1 1 auto; }
+.cbar-btn,
+.cbar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.cbar-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.cbar-btn:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+}
+.cbar-btn.at { padding: 4px 6px; color: color-mix(in srgb, var(--accent) 70%, var(--dim)); }
+.cbar-btn.at:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.composer-bar .sl-git.dirty { color: var(--yellow); }
+.composer-bar .sl-git.clean { color: var(--green); }
+.cbar-btn.sl-model { color: color-mix(in srgb, var(--accent) 80%, var(--fg)); }
+.cbar-btn.sl-effort { color: color-mix(in srgb, var(--accent) 55%, var(--dim)); }
+.cbar-chip.sl-perm {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  opacity: 0.8;
+}
+/* TEMPORAL bro: badge de cuenta de la conv activa. Acento fuerte — es info de
+   billing (esta conv corre bajo la 2a Max del hermano, no la de Daniel). */
+.cbar-chip.sl-account {
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+}
+.composer-bar .chat-sendbtn {
+  width: 32px;
+  height: 32px;
+  margin-left: 4px;
+}
+/* icono de archivo/carpeta en las filas del menu de @menciones */
+.slash-row img.ficon { width: var(--icon); height: var(--icon); flex: 0 0 auto; align-self: center; }
+.slash-row svg.ficon { flex: 0 0 auto; align-self: center; color: var(--dim); }
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-family: var(--ui-font);
+  font-size: 13.5px;
+  line-height: 1.5;
+  padding: 8px 0;
+  min-height: 22px;
+  /* SIN tope en CSS (26 jul 2026): el alto lo calcula autoGrow() contra el
+     panel (45% de su alto). Un `max-height: 200px` aqui ganaba sobre el estilo
+     inline y volvia a cortar el texto en dos renglones — el bug que Daniel
+     reporto. Pasado ese tope el textarea scrollea por dentro. */
+  max-height: none;
+  resize: none;
+  outline: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.chat-input::-webkit-scrollbar { display: none; }
+.chat-input::placeholder { color: color-mix(in srgb, var(--dim) 60%, transparent); }
+
+/* ── EL ALTO DEL COMPOSER LO MANDA autoGrow(), NO EL FLEX (27 jul 2026) ──────
+   `.chat-input` nacio con `flex: 1` cuando el composer era una FILA: ahi el eje
+   principal es el ANCHO y crecer estaba bien. La variante `codex` (18 jul) lo
+   puso en COLUMNA, y en columna `flex: 1` = `flex-basis: 0%` PISA al `height`
+   inline que calcula autoGrow(). Como el tamaño natural de un <textarea rows=1>
+   es un renglon, la caja se quedaba en DOS por largo que fuera el texto — el
+   bug que Daniel reporto el 26 y el 27 jul. Medido en headless con este mismo
+   CSS: autoGrow pedia 315px y se renderizaban 38px; con `flex: 0 0 auto`, 331px
+   (16 renglones). El `flex: 1` sigue siendo correcto para el composer FILA del
+   espejo de pantalla, por eso el fix es del hijo directo del codex y no global. */
+.chat-composer.codex > .chat-input { flex: 0 0 auto; }
+
+/* Pasado el tope (45% del panel) el textarea scrollea por dentro, y ahi SI se
+   ve la barra: ocultarla deja el texto cortado sin ninguna señal de que hay
+   mas — la app de Anthropic la muestra por lo mismo. Delgada y sin flecha, solo
+   aparece cuando desborda. */
+.chat-composer.codex > .chat-input { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--fg) 22%, transparent) transparent; }
+.chat-composer.codex > .chat-input::-webkit-scrollbar { display: block; width: 8px; }
+.chat-composer.codex > .chat-input::-webkit-scrollbar-track { background: transparent; }
+.chat-composer.codex > .chat-input::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fg) 20%, transparent);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+.chat-composer.codex > .chat-input::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fg) 34%, transparent);
+  background-clip: content-box;
+}
+
+/* ── ENVIAR: orbe con volumen (el "boton 3d" de Arbrain) — gradiente
+   claro→acento→oscuro + gloss superior + halo del acento; al presionar SE
+   HUNDE (gloss se apaga, sombra interna crece). Derivado de --accent via
+   color-mix: cada tema tiene su orbe (arbrain morado, titanium oro). ── */
+.chat-sendbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 9999px;
+  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 70%, #ffffff) 0%,
+    var(--accent) 50%,
+    color-mix(in srgb, var(--accent) 58%, #000000) 100%
+  );
+  color: #ffffff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.55),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.38),
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 3px 8px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 6px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+  transition:
+    filter 0.14s var(--ease-pop, ease),
+    box-shadow 0.14s ease,
+    transform 0.14s ease;
+  animation: chat-btn-in 0.14s cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+.chat-sendbtn:hover {
+  filter: saturate(1.12) brightness(1.05);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.6),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.42),
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 4px 10px color-mix(in srgb, var(--accent) 48%, transparent),
+    0 8px 22px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.chat-sendbtn:active {
+  filter: brightness(0.92);
+  transform: translateY(0.5px) scale(0.97);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.22),
+    0 1px 3px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+/* detener: circulo del color del texto con cuadrito — calmado, sin alarma */
+.chat-sendbtn.stop {
+  background: var(--fg);
+  color: var(--bg);
+  border: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.chat-sendbtn.stop:hover { filter: none; opacity: 0.88; }
+.chat-sendbtn.stop:active { transform: scale(0.94); }
+@keyframes chat-btn-in {
+  from { opacity: 0.4; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── UN LENGUAJE (18 jul, pase Arbrain E2E): todos los popovers y paneles
+   flotantes comparten el mismo vidrio — panel translucido + blur + borde con
+   luz arriba + una sola familia de radios/sombras. Nada de tutifruti. ── */
+.convmenu,
+.histmenu,
+.slash-menu,
+.usage-panel,
+.overlay-card,
+.preview-card {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.15);
+  backdrop-filter: blur(24px) saturate(1.15);
+  border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent);
+  border-top-color: color-mix(in srgb, var(--fg) 16%, transparent);
+  border-radius: 12px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 18px 48px rgba(0, 0, 0, 0.45);
+}
+
+/* scrollbars del chrome (chat, listas, arbol): finos y del tema — los de
+   xterm no se tocan */
+.reader-scroll::-webkit-scrollbar,
+.chat-convlist::-webkit-scrollbar,
+.chat-tree::-webkit-scrollbar,
+.overlay-list::-webkit-scrollbar,
+.settings-card::-webkit-scrollbar {
+  width: 9px;
+}
+.reader-scroll::-webkit-scrollbar-thumb,
+.chat-convlist::-webkit-scrollbar-thumb,
+.chat-tree::-webkit-scrollbar-thumb,
+.overlay-list::-webkit-scrollbar-thumb,
+.settings-card::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.reader-scroll::-webkit-scrollbar-thumb:hover,
+.chat-convlist::-webkit-scrollbar-thumb:hover,
+.chat-tree::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fg) 24%, transparent);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+.reader-scroll::-webkit-scrollbar-track,
+.chat-convlist::-webkit-scrollbar-track,
+.chat-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── settings: pestaña Atajos (20 jul) ── */
+.settings-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-tab {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.settings-tab.on { color: var(--accent); border-color: var(--accent); }
+.settings-tab:hover:not(.on) { color: var(--fg); }
+
+.atajos-tab { padding-bottom: 6px; }
+.keybind-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 4px 16px;
+  font-size: 12px;
+}
+.keybind-row.clash { background: color-mix(in srgb, var(--red) 8%, transparent); }
+.keybind-row.fixed { opacity: 0.8; }
+.keybind-label { flex: 1 1 200px; min-width: 0; color: var(--fg); }
+.keybind-warn {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.keybind-warn.clash { color: var(--red); }
+.keybind-kbd {
+  flex: 0 0 auto;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 7px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  white-space: nowrap;
+}
+.keybind-kbd.listening { color: var(--accent); border-color: var(--accent); }
+.keybind-kbd.readonly { opacity: 0.85; }
+.keybind-actions { flex: 0 0 auto; display: flex; gap: 4px; }
+.keybind-btn { width: 20px; height: 20px; font-size: 11px; }
+
+/* ---------- fences vivos (```html / ```mermaid) en lector y vistazo ---------- */
+/* Port del chat de Arbrain (21 jul): iframe sandbox de origen opaco +
+   diagrama mermaid, con la piel de tarjeta de la app. */
+.fence-card {
+  margin: 10px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+.fence-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.fence-label {
+  font-size: 10px; letter-spacing: 0.08em;
+  color: var(--dim);
+  font-family: var(--ui-font);
+}
+.fence-actions { display: flex; gap: 5px; }
+.fence-actions .reader-btn { font-size: 11px; padding: 2px 8px; }
+.fence-frame { display: block; width: 100%; height: 400px; border: 0; background: #0d0d12; }
+.fence-wait { padding: 26px 12px; text-align: center; color: var(--dim); font-size: 12px; }
+.fence-code {
+  margin: 0; padding: 12px 14px;
+  font-size: 11.5px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 400px; overflow-y: auto;
+  font-family: var(--term-font, "SF Mono"), Menlo, monospace;
+  color: var(--fg);
+}
+.fence-mermaid {
+  padding: 14px;
+  display: flex; justify-content: center;
+  overflow-x: auto;
+  background: #0d0d12;
+}
+.fence-mermaid svg { max-width: 100%; height: auto; }
+.fence-full {
+  position: fixed; inset: 0; z-index: 120;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex; flex-direction: column;
+}
+.fence-full-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.fence-full-frame { flex: 1; width: 100%; border: 0; background: #0d0d12; }
+
+/* El SLOT VACIO del navegador murio el 29 jul 2026 (pedido de Daniel: "no
+   debería verlo en principio"). Una conversacion sin navegador propio no
+   pinta nada: el campo no recibe rect (tiling.leavesOcultas) y la terminal se
+   queda con la pantalla entera. Sin tarjeta, sin hueco, sin divisor. */
+
+/* ---------- icono de TIPO en las filas del Source Control ---------- */
+/* Mismo `iconForFile` que el arbol y el ⌘P: un .md se ve igual en toda la app.
+   Va con el token, no con un numero suelto — que es justo lo que habia. */
+.scm-row img.ficon { width: var(--icon); height: var(--icon); flex: 0 0 auto; }
+
+/* ── OVERRIDES del popover de filtros de la vitrina (30 jul 2026) ────────────
+   AL FINAL DEL ARCHIVO a proposito: la piel legacy .histmenu (pre-purga) vive
+   arriba y ganaba la cascada. Fondo SOLIDO (var(--panel) trasluce la lista =
+   ilegible) y el check NO se estira (el legacy estira span:first-child para
+   sus filas label→valor; aqui el primer span es el ✓ y empujaba el label al
+   borde derecho). */
+.hist-pop {
+  background: var(--bg);
+  border-color: color-mix(in srgb, var(--fg) 14%, var(--border));
+}
+.hist-pop .histmenu-row > span:first-child { flex: 0 0 auto; }
