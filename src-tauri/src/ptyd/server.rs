@@ -121,12 +121,18 @@ fn log(msg: &str) {
 /// Punto de entrada del proceso daemon (`app --ptyd`). No retorna hasta que
 /// alguien pida `Shutdown` o el socket se caiga.
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("comprobar daemon existente");
     // ¿ya hay uno vivo? Conectar es la unica prueba honesta: un .sock en disco
     // puede ser el cadaver de un daemon que murio sin limpiar.
     if transport::connect().is_ok() {
+        #[cfg(target_os = "windows")]
+        trace_windows_e2e("probe conectó con daemon existente; salir");
         log("ya habia un daemon vivo, salgo");
         return;
     }
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("bind del Named Pipe");
     transport::cleanup_endpoint();
     let listener = match Listener::bind() {
         Ok(l) => l,
@@ -135,12 +141,16 @@ pub fn run() {
             return;
         }
     };
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("Named Pipe listo; esperar accept");
     log(&format!("daemon arriba (pid {})", std::process::id()));
 
     let hub = Arc::new(Hub::default());
     loop {
         match listener.accept() {
             Ok(s) => {
+                #[cfg(target_os = "windows")]
+                trace_windows_e2e("cliente aceptado");
                 let hub = hub.clone();
                 std::thread::spawn(move || serve_client(hub, s));
             }
@@ -150,6 +160,8 @@ pub fn run() {
 }
 
 fn serve_client(hub: Arc<Hub>, stream: Stream) {
+    #[cfg(target_os = "windows")]
+    trace_windows_e2e("iniciar serve_client");
     let id = NEXT_CLIENT.fetch_add(1, Ordering::SeqCst);
     let (tx, rx) = sync_channel::<Vec<u8>>(CLIENT_QUEUE_MAX);
     let client = Arc::new(Client {
@@ -204,6 +216,8 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
         if !saludado {
             match &req {
                 Req::Hello { proto, client: who } => {
+                    #[cfg(target_os = "windows")]
+                    trace_windows_e2e("Hello recibido");
                     saludado = true;
                     let terms = hub.terms.lock().unwrap().len();
                     log(&format!(
