@@ -39,6 +39,8 @@ pub mod server;
 #[cfg(all(test, target_os = "macos"))]
 mod tests;
 pub mod transport;
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests;
 
 use std::path::PathBuf;
 
@@ -71,11 +73,19 @@ pub fn pipe_name() -> String {
             return name;
         }
     }
-    let key = base_dir().to_string_lossy().to_lowercase();
+    pipe_name_for_base(&base_dir(), windows_session_id())
+}
+
+#[cfg(target_os = "windows")]
+fn pipe_name_for_base(base: &std::path::Path, session_id: u32) -> String {
+    let key = base.to_string_lossy().to_lowercase();
     let hash = key.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
         (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
     });
-    format!(r"\\.\pipe\sfterm-ptyd-{}-{hash:016x}", windows_session_id())
+    format!(
+        r"\\.\pipe\sfterm-ptyd-{session_id}-{hash:016x}-v{}",
+        proto::PROTO
+    )
 }
 
 #[cfg(target_os = "windows")]
@@ -99,6 +109,11 @@ mod windows_tests {
         let name = super::pipe_name();
         assert!(name.starts_with(r"\\.\pipe\sfterm-ptyd-"));
         assert!(!name.contains('/') && !name.contains(':'));
+        assert!(name.ends_with(&format!("-v{}", super::proto::PROTO)));
+
+        let a = super::pipe_name_for_base(std::path::Path::new(r"C:\a"), 7);
+        let b = super::pipe_name_for_base(std::path::Path::new(r"C:\b"), 7);
+        assert_ne!(a, b, "dos config dirs no pueden compartir daemon");
     }
 }
 
