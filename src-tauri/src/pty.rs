@@ -1582,6 +1582,7 @@ mod tests {
             "{engine} no conservó el pegado bracketed multilínea/Unicode: {out}"
         );
 
+        let mut deterministic_prompt_seq = None;
         if engine == "powershell.exe"
             && std::env::var("SFTERM_REAL_TUI_MATRIX").as_deref() == Ok("1")
         {
@@ -1640,6 +1641,7 @@ mod tests {
                 &mut answered_dsr,
                 &mut prompt_seq,
             );
+            deterministic_prompt_seq = Some(prompt_seq);
         }
 
         // Ctrl+C real: interrumpe un workload largo mediante ETX y conserva
@@ -1660,7 +1662,23 @@ mod tests {
             "{engine} no inició el workload de Ctrl+C: {out}"
         );
         write_conpty(writer.as_mut(), "\x03");
-        std::thread::sleep(std::time::Duration::from_millis(600));
+        if let Some(prompt_seq) = deterministic_prompt_seq.as_mut() {
+            *prompt_seq += 1;
+            let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
+            assert!(
+                read_conpty_until(
+                    &output_rx,
+                    writer.as_mut(),
+                    &mut out,
+                    &mut answered_dsr,
+                    &prompt_marker,
+                    std::time::Duration::from_secs(5),
+                ),
+                "{engine} no restauró el prompt después de Ctrl+C: {out}"
+            );
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(600));
+        }
         write_conpty(writer.as_mut(), "Write-Output ($p + '_AFTER_CTRL_C')\r");
         assert!(
             read_conpty_until(
