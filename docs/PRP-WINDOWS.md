@@ -111,7 +111,7 @@ Contratos iniciales:
 | Fase | Estado | Evidencia |
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
-| 1. Frontera de plataforma | En curso | Capacidades explícitas y check, Clippy y tests Rust verdes; auditoría de neutralidad continúa |
+| 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
 | 2. Terminal Windows | En curso | ConPTY + integración PowerShell OSC validada; E2E pendiente |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
@@ -342,9 +342,28 @@ Contratos iniciales:
   para navegador, voz y captura de ventana; el frontend las carga durante el
   boot. En Windows la paleta deshabilita el navegador pendiente y presenta la
   razón concreta antes de crear pestañas o modificar el layout.
-- Con esta evidencia se cierra la Fase 0. La Fase 1 sigue abierta únicamente
-  para completar la auditoría de neutralidad de módulos y capacidades, no por
-  fallos de resolución, compilación o tests Rust.
+- Con esta evidencia se cerró la Fase 0. En ese punto la Fase 1 quedó abierta
+  únicamente para completar la auditoría de neutralidad de módulos y
+  capacidades; su cierre se registra en la entrada siguiente.
+
+#### 2026-08-02 — Cierre de Fase 1: frontera de plataforma
+
+- Escritorio/Papelera, enumeración de fuentes, permisos del gate y selección
+  de shell se trasladaron desde `fsx`, `fonts` y `gate` a adaptadores dedicados
+  bajo `src-tauri/src/platform/`.
+- `scripts/check-platform-boundaries.mjs` inspecciona todos los módulos Rust
+  neutrales y falla si detecta imports Objective-C, APIs Unix/Win32 o
+  ejecutables nativos fuera de los adaptadores declarados. El gate se ejecuta
+  tanto en el job nativo Windows como en el de macOS.
+- La ejecución limpia
+  [GitHub Actions #30761586029](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30761586029)
+  dejó verdes los cuatro jobs, el nuevo gate, formato, `cargo check`, Clippy
+  estricto y tests. Windows descubrió 93 tests Rust: 91 superados, 2 ignorados
+  explícitamente y cero fallos.
+- Se cumplen los criterios de aceptación de la Fase 1: compilación en ambos
+  sistemas, ausencia automatizada de imports nativos en módulos neutrales y UI
+  gobernada por `platform_capabilities`. La siguiente fase activa es el cierre
+  E2E interactivo de ConPTY y PowerShell.
 
 ## 6. Fases de implementación
 

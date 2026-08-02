@@ -50,6 +50,7 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite 66/66. |
 | CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows estable; cero fallos ni esperas indefinidas. |
 | CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | En Windows el navegador queda deshabilitado con una razón explícita; contrato cubierto por test Rust. |
+| CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -63,7 +64,7 @@ npm run test:rust
 ```
 
 La ejecución de referencia en una máquina limpia es
-[GitHub Actions #30760855027](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760855027):
+[GitHub Actions #30761586029](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30761586029):
 los cuatro jobs de frontend y backend nativo finalizaron correctamente en
 `windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
 warnings como error y la suite Rust.
@@ -271,7 +272,7 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows de `cargo test` descubre 92 tests: 90 superados y 2 ignorados
+La suite Windows de `cargo test` descubre 93 tests: 91 superados y 2 ignorados
 de forma explícita. Cubre el motor (parser, grid, bloques, soft-wraps), paths y
 configuración multiplataforma, transporte/daemon y piezas puras como ranking de
 modelos whisper y base64 de adjuntos.
