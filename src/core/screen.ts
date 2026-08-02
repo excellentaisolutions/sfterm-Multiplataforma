@@ -217,7 +217,10 @@ function joinProse(first: string, rest: string[], p: ScreenProfile): string {
  *  gigantesco) devuelve null en vez de un fragmento que arrancaria a media
  *  palabra — por eso el lector pide una cola holgada. */
 export function parseLiveProse(tail: string, p: ScreenProfile): string | null {
-  const lines = tail.split("\n");
+  // A ConPTY/CLI or a Git checkout on Windows may provide CRLF. Keeping the
+  // trailing CR would make every anchored profile regexp fail (`$` sees it),
+  // turning a valid screen into `null`.
+  const lines = tail.replace(/\r\n?/g, "\n").split("\n");
   const top = inputBoxTop(lines, p);
   if (top == null) return null;
   let end = top; // exclusivo

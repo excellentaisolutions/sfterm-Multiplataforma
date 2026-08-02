@@ -45,6 +45,7 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
 | CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
 | CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | `cargo fmt --all -- --check` verde localmente. |
+| CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite 66/66. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 

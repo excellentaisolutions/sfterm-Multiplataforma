@@ -38,6 +38,11 @@ test("prosa en vuelo: devuelve el bloque que se esta escribiendo", () => {
   assert.ok(!prosa.includes("─────"), "no se cuela la regla del TUI");
 });
 
+test("la pantalla CRLF de Windows se interpreta igual que LF", () => {
+  const lf = cap("prosa-en-vuelo").replace(/\r\n?/g, "\n");
+  assert.equal(parseLiveProse(lf.replace(/\n/g, "\r\n"), P), parseLiveProse(lf, P));
+});
+
 test("prosa con lista: viñetas y parrafos sobreviven al desenvuelto", () => {
   const prosa = parseLiveProse(cap("prosa-con-lista"), P);
   assert.ok(prosa);
