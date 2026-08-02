@@ -10,6 +10,7 @@ permissions:
 jobs:
   frontend:
     name: Frontend (${{ matrix.os }})
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +32,7 @@ jobs:
   native-macos:
     name: Native (macOS)
     runs-on: macos-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.97.0
@@ -40,12 +42,17 @@ jobs:
         with:
           workspaces: src-tauri
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --quiet
+      - name: Clippy
+        timeout-minutes: 15
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Rust tests
+        timeout-minutes: 15
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
   native-windows:
     name: Native (Windows)
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.97.0
@@ -57,5 +64,12 @@ jobs:
       - run: npm run test:shell:windows
       - run: npm run test:process-tree:windows
       - run: npm run test:ptyd-primitives:windows
-      - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --quiet
+      - name: Cargo check
+        timeout-minutes: 15
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+      - name: Clippy
+        timeout-minutes: 15
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets -- -D warnings
+      - name: Rust tests
+        timeout-minutes: 15
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
