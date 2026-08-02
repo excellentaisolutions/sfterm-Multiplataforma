@@ -1336,6 +1336,7 @@ mod tests {
         let mut child = pair.slave.spawn_command(cmd).expect("spawn PowerShell");
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("reader");
+        let mut writer = pair.master.take_writer().expect("writer");
         let (output_tx, output_rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut buf = [0u8; 4096];
@@ -1356,15 +1357,23 @@ mod tests {
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
         let mut out = String::new();
+        let mut answered_dsr = false;
         while std::time::Instant::now() < deadline && !out.contains("SFTERM_WINDOWS_OK") {
             if let Ok(chunk) = output_rx.recv_timeout(std::time::Duration::from_millis(100)) {
                 out.push_str(&chunk);
+                if !answered_dsr && out.contains("\x1b[6n") {
+                    std::io::Write::write_all(&mut writer, b"\x1b[1;1R")
+                        .expect("responder DSR a PowerShell");
+                    std::io::Write::flush(&mut writer).expect("flush DSR");
+                    answered_dsr = true;
+                }
             }
         }
 
         // Una PTY representa un shell interactivo: el contrato es producir el
         // marcador y responder al cierre explícito, no alcanzar EOF por sí sola.
         let _ = child.kill();
+        drop(writer);
         drop(pair.master);
         let _ = child.wait();
         assert!(
