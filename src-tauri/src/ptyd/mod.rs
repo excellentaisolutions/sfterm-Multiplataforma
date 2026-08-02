@@ -36,9 +36,9 @@ pub mod client;
 pub mod job;
 pub mod proto;
 pub mod server;
-pub mod transport;
 #[cfg(all(test, target_os = "macos"))]
 mod tests;
+pub mod transport;
 
 use std::path::PathBuf;
 
@@ -72,15 +72,10 @@ pub fn pipe_name() -> String {
         }
     }
     let key = base_dir().to_string_lossy().to_lowercase();
-    let hash = key
-        .bytes()
-        .fold(0xcbf29ce484222325u64, |hash, byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
-        });
-    format!(
-        r"\\.\pipe\sfterm-ptyd-{}-{hash:016x}",
-        windows_session_id()
-    )
+    let hash = key.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    });
+    format!(r"\\.\pipe\sfterm-ptyd-{}-{hash:016x}", windows_session_id())
 }
 
 #[cfg(target_os = "windows")]

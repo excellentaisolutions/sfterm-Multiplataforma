@@ -22,6 +22,8 @@
     "test:process-tree:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-process-tree.ps1",
     "test:ptyd-primitives:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-ptyd-primitives.ps1",
     "env:check": "node scripts/check-environment.mjs",
+    "cargo:doctor": "node scripts/check-cargo.mjs",
+    "cargo:doctor:online": "node scripts/check-cargo.mjs --online",
     "setup:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
     "check:rust": "node scripts/run-with-project-target.mjs cargo check --manifest-path src-tauri/Cargo.toml --locked",
     "test:rust": "node scripts/run-with-project-target.mjs cargo test --manifest-path src-tauri/Cargo.toml --locked --quiet",

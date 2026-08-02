@@ -41,10 +41,7 @@ pub async fn git_status(root: String) -> Result<GitStatus, String> {
             Ok(r) => r,
             Err(_) => return Ok(GitStatus::default()),
         };
-        let workdir = repo
-            .workdir()
-            .map(|p| p.to_path_buf())
-            .ok_or("bare repo")?;
+        let workdir = repo.workdir().map(|p| p.to_path_buf()).ok_or("bare repo")?;
 
         let branch = repo
             .head()
@@ -79,9 +76,7 @@ pub async fn git_status(root: String) -> Result<GitStatus, String> {
         let root_path = std::path::Path::new(&root)
             .canonicalize()
             .unwrap_or_else(|_| std::path::PathBuf::from(&root));
-        let workdir_c = workdir
-            .canonicalize()
-            .unwrap_or_else(|_| workdir.clone());
+        let workdir_c = workdir.canonicalize().unwrap_or_else(|_| workdir.clone());
         if root_path != workdir_c {
             if let Ok(prefix) = root_path.strip_prefix(&workdir_c) {
                 let prefix = format!("{}/", prefix.to_string_lossy());
@@ -224,7 +219,11 @@ fn sync_state(repo: &Repository) -> GitSyncState {
         .exclude_submodules(true);
     let dirty = repo
         .statuses(Some(&mut opts))
-        .map(|s| s.iter().filter(|e| status_code(e.status()).is_some()).count())
+        .map(|s| {
+            s.iter()
+                .filter(|e| status_code(e.status()).is_some())
+                .count()
+        })
         .unwrap_or(0);
 
     GitSyncState {
@@ -255,19 +254,31 @@ fn branch_tips(repo: &Repository) -> (Vec<git2::Oid>, Vec<git2::Oid>, RefChips) 
     let mut remotes = Vec::new();
     let mut chips: RefChips = HashMap::new();
     let mut push = |oid: git2::Oid, name: String, remote: bool, head: bool| {
-        chips.entry(oid).or_default().push(GitRefChip { name, remote, head });
+        chips
+            .entry(oid)
+            .or_default()
+            .push(GitRefChip { name, remote, head });
     };
     if let Ok(branches) = repo.branches(Some(git2::BranchType::Local)) {
         for (b, _) in branches.flatten().take(32) {
-            let Some(oid) = b.get().target() else { continue };
+            let Some(oid) = b.get().target() else {
+                continue;
+            };
             let Ok(Some(name)) = b.name() else { continue };
             locals.push(oid);
-            push(oid, name.to_string(), false, head_name.as_deref() == Some(name));
+            push(
+                oid,
+                name.to_string(),
+                false,
+                head_name.as_deref() == Some(name),
+            );
         }
     }
     if let Ok(branches) = repo.branches(Some(git2::BranchType::Remote)) {
         for (b, _) in branches.flatten().take(32) {
-            let Some(oid) = b.get().target() else { continue };
+            let Some(oid) = b.get().target() else {
+                continue;
+            };
             let Ok(Some(name)) = b.name() else { continue };
             if name.ends_with("/HEAD") {
                 continue; // alias, ruido
@@ -319,20 +330,36 @@ pub async fn git_log(root: String, skip: usize, limit: usize) -> Result<GitLog, 
         let limit = limit.clamp(1, 500);
         let mut commits = Vec::with_capacity(limit);
         for oid in walk.flatten().skip(skip).take(limit) {
-            let Ok(c) = repo.find_commit(oid) else { continue };
+            let Ok(c) = repo.find_commit(oid) else {
+                continue;
+            };
             commits.push(GitCommitInfo {
                 hash: short(oid),
                 full: oid.to_string(),
-                msg: c.summary().ok().flatten().unwrap_or("").chars().take(120).collect(),
+                msg: c
+                    .summary()
+                    .ok()
+                    .flatten()
+                    .unwrap_or("")
+                    .chars()
+                    .take(120)
+                    .collect(),
                 time: c.time().seconds(),
                 author: c.author().name().ok().unwrap_or("").to_string(),
                 in_cloud: !remotes.is_empty() && !local_only.contains(&oid),
                 parents: c.parent_ids().map(|p| p.to_string()).collect(),
-                refs: chips.get(&oid).map(|v| {
-                    v.iter()
-                        .map(|r| GitRefChip { name: r.name.clone(), remote: r.remote, head: r.head })
-                        .collect()
-                }).unwrap_or_default(),
+                refs: chips
+                    .get(&oid)
+                    .map(|v| {
+                        v.iter()
+                            .map(|r| GitRefChip {
+                                name: r.name.clone(),
+                                remote: r.remote,
+                                head: r.head,
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
             });
         }
         Ok(GitLog {
@@ -383,7 +410,11 @@ fn commit_patch(repo: &Repository, commit: &git2::Commit) -> Result<String, Stri
         commit.author().name().unwrap_or(""),
         commit.author().email().unwrap_or(""),
         when,
-        commit.message().unwrap_or("").trim_end().replace('\n', "\n    "),
+        commit
+            .message()
+            .unwrap_or("")
+            .trim_end()
+            .replace('\n', "\n    "),
     );
     const CAP: usize = 400_000;
     let mut truncated = false;
@@ -432,10 +463,7 @@ pub async fn git_diff_file(root: String, path: String) -> Result<String, String>
         opts.show_untracked_content(true);
         opts.context_lines(3);
 
-        let head_tree = repo
-            .head()
-            .ok()
-            .and_then(|h| h.peel_to_tree().ok());
+        let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
 
         let diff = repo
             .diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))
@@ -486,7 +514,12 @@ pub(crate) mod tests {
         (dir, repo)
     }
 
-    pub(crate) fn commit_file(repo: &Repository, name: &str, content: &str, msg: &str) -> git2::Oid {
+    pub(crate) fn commit_file(
+        repo: &Repository,
+        name: &str,
+        content: &str,
+        msg: &str,
+    ) -> git2::Oid {
         let workdir = repo.workdir().unwrap().to_path_buf();
         std::fs::write(workdir.join(name), content).unwrap();
         let mut idx = repo.index().unwrap();
@@ -577,15 +610,20 @@ pub(crate) mod tests {
         let c1c = repo.find_commit(c1).unwrap();
         repo.branch("feature", &c1c, false).unwrap();
         repo.set_head("refs/heads/feature").unwrap();
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force())).unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
         let c2f = commit_file(&repo, "f.txt", "feat", "c2-feature");
         // de vuelta a main, commit propio + MERGE de feature (dos padres)
         repo.set_head("refs/heads/main").unwrap();
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force())).unwrap();
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))
+            .unwrap();
         let c2m = commit_file(&repo, "m.txt", "main", "c2-main");
         let sig = git2::Signature::now("test", "t@t").unwrap();
         let tree = repo.find_commit(c2m).unwrap().tree().unwrap();
-        let parents = [repo.find_commit(c2m).unwrap(), repo.find_commit(c2f).unwrap()];
+        let parents = [
+            repo.find_commit(c2m).unwrap(),
+            repo.find_commit(c2f).unwrap(),
+        ];
         let pref: Vec<&git2::Commit> = parents.iter().collect();
         let merge = repo
             .commit(Some("HEAD"), &sig, &sig, "merge feature", &tree, &pref)
@@ -593,10 +631,21 @@ pub(crate) mod tests {
 
         let root = dir.to_string_lossy().to_string();
         let log = tauri::async_runtime::block_on(git_log(root, 0, 10)).unwrap();
-        let m = log.commits.iter().find(|c| c.full == merge.to_string()).unwrap();
+        let m = log
+            .commits
+            .iter()
+            .find(|c| c.full == merge.to_string())
+            .unwrap();
         assert_eq!(m.parents.len(), 2, "el merge trae sus dos aristas");
-        assert!(m.refs.iter().any(|r| r.name == "main" && r.head && !r.remote));
-        let f = log.commits.iter().find(|c| c.full == c2f.to_string()).unwrap();
+        assert!(m
+            .refs
+            .iter()
+            .any(|r| r.name == "main" && r.head && !r.remote));
+        let f = log
+            .commits
+            .iter()
+            .find(|c| c.full == c2f.to_string())
+            .unwrap();
         assert!(f.refs.iter().any(|r| r.name == "feature" && !r.head));
         // todos los commits del grafo aparecen (ambas ramas caminadas)
         assert!(log.commits.len() >= 4);

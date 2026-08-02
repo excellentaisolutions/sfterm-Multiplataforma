@@ -199,6 +199,14 @@ Contratos iniciales:
 - La validación local de resolución avanza más allá de `font-kit`, pero
   `cargo check --offline` se detiene ahora en `git2`, tampoco presente en la
   caché de fuentes. Hasta disponer de crates.io no se declara la Fase 1 cerrada.
+- Diagnóstico ampliado: Rust/Cargo 1.97.0 MSVC y los endpoints
+  `index.crates.io`/`static.crates.io` están operativos desde la máquina, sin
+  proxy. Sin embargo, `cargo.exe` y `rustup.exe` reciben `WSAEACCES` (error
+  10013) al abrir sockets, mientras `curl.exe` conecta a los mismos hosts. El
+  bloqueo es una política local por proceso (firewall, EDR o sandbox), no un
+  defecto del manifiesto. `npm run cargo:doctor[:online]` deja esta diferencia
+  reproducible y el bootstrap la muestra si falla la descarga. No se adoptan
+  mirrors ni se altera el lockfile como falsa solución.
 
 #### 2026-08-02 — Inicio de Fase 2
 

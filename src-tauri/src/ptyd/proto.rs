@@ -34,7 +34,10 @@ pub const KIND_DATA: u8 = 2;
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Req {
     /// Primer mensaje. Sin handshake, el daemon no atiende nada mas.
-    Hello { proto: u32, client: String },
+    Hello {
+        proto: u32,
+        client: String,
+    },
     /// Terminales vivas (las de la sesion anterior incluidas: ese es el punto).
     List,
     Spawn {
@@ -52,15 +55,30 @@ pub enum Req {
     /// continuacion manda el REPLAY (frames DATA con lo que el daemon guardo
     /// mientras la app no existia): eso es lo que repinta la pantalla donde se
     /// quedo, con colores y todo, sin que el proceso se entere de nada.
-    Attach { id: u32 },
-    Detach { id: u32 },
-    Write { id: u32, data: String },
-    Resize { id: u32, cols: u16, rows: u16 },
-    Kill { id: u32 },
+    Attach {
+        id: u32,
+    },
+    Detach {
+        id: u32,
+    },
+    Write {
+        id: u32,
+        data: String,
+    },
+    Resize {
+        id: u32,
+        cols: u16,
+        rows: u16,
+    },
+    Kill {
+        id: u32,
+    },
     /// Grupo de proceso en primer plano del PTY (tcgetpgrp). Lo necesita
     /// `term_session` para resolver la verdad del piso, y solo se puede
     /// preguntar desde quien tiene el fd del master: el daemon.
-    FgPgid { id: u32 },
+    FgPgid {
+        id: u32,
+    },
     /// Todos los fg pgids en UN viaje: el loop de metrics pregunta cada 1.5s
     /// por TODAS las terminales — un roundtrip por terminal por tick seria
     /// castigar al daemon por existir. Un daemon viejo que no conozca este op
@@ -73,15 +91,36 @@ pub enum Req {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "res", rename_all = "snake_case")]
 pub enum Res {
-    Hello { proto: u32, pid: u32, terms: usize },
-    Spawned { id: u32, pid: u32 },
-    List { terms: Vec<TermInfo> },
+    Hello {
+        proto: u32,
+        pid: u32,
+        terms: usize,
+    },
+    Spawned {
+        id: u32,
+        pid: u32,
+    },
+    List {
+        terms: Vec<TermInfo>,
+    },
     /// `bytes` = cuanto replay viene detras en frames DATA.
-    Attached { id: u32, bytes: usize, cols: u16, rows: u16 },
-    Pgid { id: u32, pgid: i32 },
-    Pgids { list: Vec<PgidEntry> },
+    Attached {
+        id: u32,
+        bytes: usize,
+        cols: u16,
+        rows: u16,
+    },
+    Pgid {
+        id: u32,
+        pgid: i32,
+    },
+    Pgids {
+        list: Vec<PgidEntry>,
+    },
     Ok,
-    Err { msg: String },
+    Err {
+        msg: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

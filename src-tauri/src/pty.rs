@@ -151,16 +151,23 @@ pub fn build_shell_command(
     if shell_integration.unwrap_or(true) && shell.ends_with("zsh") {
         let inject = crate::engine::shell_dir();
         if inject.join(".zshrc").exists() {
-            let user_zdot = std::env::var("ZDOTDIR")
-                .unwrap_or_else(|_| dirs::home_dir().unwrap_or_default().to_string_lossy().to_string());
+            let user_zdot = std::env::var("ZDOTDIR").unwrap_or_else(|_| {
+                dirs::home_dir()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            });
             cmd.env("SFTERM_INJECT_DIR", inject.to_string_lossy().to_string());
             cmd.env("SFTERM_USER_ZDOTDIR", user_zdot);
             cmd.env("ZDOTDIR", inject.to_string_lossy().to_string());
         }
     }
-    let cwd_final = expand_tilde(
-        &cwd.unwrap_or_else(|| dirs::home_dir().unwrap_or_default().to_string_lossy().to_string()),
-    );
+    let cwd_final = expand_tilde(&cwd.unwrap_or_else(|| {
+        dirs::home_dir()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
+    }));
     if std::path::Path::new(&cwd_final).is_dir() {
         cmd.cwd(&cwd_final);
     }
@@ -250,7 +257,10 @@ pub fn pty_spawn(
                 exited: false,
             },
         );
-        crate::events::emit("term_spawned", serde_json::json!({ "term": id, "cwd": cwd_final }));
+        crate::events::emit(
+            "term_spawned",
+            serde_json::json!({ "term": id, "cwd": cwd_final }),
+        );
         return Ok(id);
     }
 
@@ -331,7 +341,10 @@ pub fn pty_spawn(
             exited: false,
         },
     );
-    crate::events::emit("term_spawned", serde_json::json!({ "term": id, "cwd": cwd_final }));
+    crate::events::emit(
+        "term_spawned",
+        serde_json::json!({ "term": id, "cwd": cwd_final }),
+    );
     Ok(id)
 }
 
@@ -372,7 +385,11 @@ fn inject_initial_command(
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
         // margen: el prompt ya pinto pero el shell sigue armando bindings
-        std::thread::sleep(std::time::Duration::from_millis(if prompt_listo { 150 } else { 300 }));
+        std::thread::sleep(std::time::Duration::from_millis(if prompt_listo {
+            150
+        } else {
+            300
+        }));
         if let Ok(mut w) = w.lock() {
             let _ = w.write_all(format!(" {}\r", cmdline.trim()).as_bytes());
             let _ = w.flush();
@@ -578,12 +595,7 @@ pub fn pty_adopt(
     if state.sessions.lock().unwrap().contains_key(&id) {
         return Err(format!("la terminal {id} ya esta adoptada"));
     }
-    let info = crate::ptyd_bridge::adopt(
-        &engine_state,
-        id,
-        scrollback.unwrap_or(8000),
-        on_data,
-    )?;
+    let info = crate::ptyd_bridge::adopt(&engine_state, id, scrollback.unwrap_or(8000), on_data)?;
     let writer = crate::ptyd_bridge::writer_of(id).ok_or("adopt sin writer (bug)")?;
     state.sessions.lock().unwrap().insert(
         id,
@@ -631,9 +643,7 @@ pub fn term_session(
         let sessions = state.sessions.lock().unwrap();
         let s = sessions.get(&id).ok_or("no such pty")?;
         match &s.backend {
-            PtyBackend::Local { raw_fd, .. } => {
-                local_foreground_process(*raw_fd, s.shell_pid)
-            }
+            PtyBackend::Local { raw_fd, .. } => local_foreground_process(*raw_fd, s.shell_pid),
             // el fd del master vive en el daemon: se le pregunta a el
             PtyBackend::Daemon => crate::ptyd_bridge::fg_pgid(id),
         }
@@ -669,7 +679,8 @@ pub fn term_session(
     // el claude puede correr bajo OTRO config dir (bro: CLAUDE_CONFIG_DIR=
     // ~/.claude-bro) — su jsonl vive ahi, no en ~/.claude (leccion "hola
     // invisible" 17 jul: adivinar el root cruza sesiones de cuentas)
-    let cfg_env = process_env_value(proc.environ(), "CLAUDE_CONFIG_DIR").map(std::path::PathBuf::from);
+    let cfg_env =
+        process_env_value(proc.environ(), "CLAUDE_CONFIG_DIR").map(std::path::PathBuf::from);
     let claude_root = cfg_env
         .clone()
         .or_else(|| dirs::home_dir().map(|h| h.join(".claude")));
@@ -707,8 +718,7 @@ pub fn term_session(
         if a.to_string_lossy() == "--resume" {
             if let Some(next) = cmd.get(i + 1) {
                 let v = next.to_string_lossy().to_string();
-                let uuidish =
-                    v.len() == 36 && v.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+                let uuidish = v.len() == 36 && v.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
                 if uuidish && dir.join(format!("{v}.jsonl")).is_file() {
                     best = Some((v, "argv"));
                     break;
@@ -785,7 +795,10 @@ pub fn term_session(
     }
 
     Ok(best.map(|(sid, how)| TermSessionInfo {
-        path: dir.join(format!("{sid}.jsonl")).to_string_lossy().to_string(),
+        path: dir
+            .join(format!("{sid}.jsonl"))
+            .to_string_lossy()
+            .to_string(),
         config_dir: cfg_env.map(|p| p.to_string_lossy().to_string()),
         sid,
         how,
@@ -940,7 +953,11 @@ pub(crate) fn has_real_messages(p: &std::path::Path) -> bool {
         Err(_) => return false,
     };
     let mut head = Vec::with_capacity(1 << 20);
-    if Read::by_ref(&mut f).take(1 << 20).read_to_end(&mut head).is_err() {
+    if Read::by_ref(&mut f)
+        .take(1 << 20)
+        .read_to_end(&mut head)
+        .is_err()
+    {
         return false;
     }
     let h = String::from_utf8_lossy(&head);
@@ -1028,10 +1045,20 @@ pub fn foreground_pgids(state: &PtyState) -> Vec<(u32, u32, i32)> {
     };
     #[cfg(target_os = "windows")]
     {
-        let shell_pids: Vec<u32> = local_ids.iter().map(|(_, shell_pid, _)| *shell_pid).collect();
+        let shell_pids: Vec<u32> = local_ids
+            .iter()
+            .map(|(_, shell_pid, _)| *shell_pid)
+            .collect();
         let foreground = windows_foreground_processes(&shell_pids);
         out.extend(local_ids.into_iter().map(|(id, shell_pid, _)| {
-            (id, shell_pid, foreground.get(&shell_pid).copied().unwrap_or(shell_pid as i32))
+            (
+                id,
+                shell_pid,
+                foreground
+                    .get(&shell_pid)
+                    .copied()
+                    .unwrap_or(shell_pid as i32),
+            )
         }));
     }
     #[cfg(target_os = "macos")]
@@ -1091,7 +1118,10 @@ pub(crate) fn windows_foreground_processes(shell_pids: &[u32]) -> HashMap<u32, i
     shell_pids
         .iter()
         .map(|shell_pid| {
-            (*shell_pid, select_windows_foreground(*shell_pid, &nodes) as i32)
+            (
+                *shell_pid,
+                select_windows_foreground(*shell_pid, &nodes) as i32,
+            )
         })
         .collect()
 }
@@ -1208,7 +1238,9 @@ mod tests {
     fn el_hijo_sabe_que_terminal_es() {
         let (cmd_builder, _) = build_shell_command(Some("/tmp".into()), Some(false), None, 42);
         assert_eq!(
-            cmd_builder.get_env("SFTERM_TERM_ID").and_then(|v| v.to_str()),
+            cmd_builder
+                .get_env("SFTERM_TERM_ID")
+                .and_then(|v| v.to_str()),
             Some("42"),
             "el entorno del hijo tiene que traer su propio id"
         );
@@ -1216,7 +1248,12 @@ mod tests {
         // …y de verdad sobrevive al spawn: zsh lo imprime desde adentro del PTY
         let pty_system = native_pty_system();
         let pair = pty_system
-            .openpty(PtySize { rows: 24, cols: 80, pixel_width: 0, pixel_height: 0 })
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .expect("openpty");
         let mut cmd = CommandBuilder::new("/bin/zsh");
         cmd.args(["-f", "-c", "echo ID=[$SFTERM_TERM_ID]"]);
@@ -1245,7 +1282,12 @@ mod tests {
         // PTY real: zsh corre, escribe, responde. El corazon del producto.
         let pty_system = native_pty_system();
         let pair = pty_system
-            .openpty(PtySize { rows: 24, cols: 80, pixel_width: 0, pixel_height: 0 })
+            .openpty(PtySize {
+                rows: 24,
+                cols: 80,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .expect("openpty");
         let mut cmd = CommandBuilder::new("/bin/zsh");
         cmd.args(["-f", "-c", "echo SFTERM_OK_$((40+2))"]);
@@ -1350,11 +1392,23 @@ mod tests_machinery {
     #[test]
     fn glifo_de_estado_fuera() {
         // titulo OSC de claude = "<glifo> <resumen>"; sin glifo, entero
-        assert_eq!(super::strip_status_glyph("✳ Actualizar sfterm"), "Actualizar sfterm");
-        assert_eq!(super::strip_status_glyph("⠂ Rebuild de la app"), "Rebuild de la app");
-        assert_eq!(super::strip_status_glyph("Actualizar sfterm"), "Actualizar sfterm");
+        assert_eq!(
+            super::strip_status_glyph("✳ Actualizar sfterm"),
+            "Actualizar sfterm"
+        );
+        assert_eq!(
+            super::strip_status_glyph("⠂ Rebuild de la app"),
+            "Rebuild de la app"
+        );
+        assert_eq!(
+            super::strip_status_glyph("Actualizar sfterm"),
+            "Actualizar sfterm"
+        );
         // primer token con alfanumericos = parte del titulo, no glifo
-        assert_eq!(super::strip_status_glyph("QA e2e del peek"), "QA e2e del peek");
+        assert_eq!(
+            super::strip_status_glyph("QA e2e del peek"),
+            "QA e2e del peek"
+        );
     }
 
     #[test]
@@ -1375,7 +1429,11 @@ mod tests_machinery {
             Some("Actualizar cambios de sfterm y rebuild")
         );
         let sin = d.join("sfterm-test-sin-titulo.jsonl");
-        std::fs::write(&sin, r#"{"type":"user","message":{"role":"user","content":"hola"}}"#).unwrap();
+        std::fs::write(
+            &sin,
+            r#"{"type":"user","message":{"role":"user","content":"hola"}}"#,
+        )
+        .unwrap();
         assert_eq!(super::last_ai_title(&sin), None);
         let _ = std::fs::remove_file(&p);
         let _ = std::fs::remove_file(&sin);
@@ -1408,7 +1466,10 @@ mod tests_machinery {
             ),
         )
         .unwrap();
-        assert!(!super::has_real_messages(&cascaron), "cascaron: sin mensajes");
+        assert!(
+            !super::has_real_messages(&cascaron),
+            "cascaron: sin mensajes"
+        );
         assert!(super::has_real_messages(&real), "conversacion real: si");
         let _ = std::fs::remove_file(&cascaron);
         let _ = std::fs::remove_file(&real);
@@ -1441,9 +1502,18 @@ mod tests_machinery {
     /// titulo==aiTitle es una rifa, no una verdad.
     #[test]
     fn titulos_genericos_fuera() {
-        assert!(super::is_generic_title("Claude Code", "/Users/d/Developer/business-os"));
-        assert!(super::is_generic_title("claude", "/Users/d/Developer/business-os"));
-        assert!(super::is_generic_title("business-os", "/Users/d/Developer/business-os"));
+        assert!(super::is_generic_title(
+            "Claude Code",
+            "/Users/d/Developer/business-os"
+        ));
+        assert!(super::is_generic_title(
+            "claude",
+            "/Users/d/Developer/business-os"
+        ));
+        assert!(super::is_generic_title(
+            "business-os",
+            "/Users/d/Developer/business-os"
+        ));
         assert!(super::is_generic_title("corto", "/tmp/x"));
         assert!(!super::is_generic_title(
             "Investigar sección de remodelación",

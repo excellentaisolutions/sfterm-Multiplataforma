@@ -13,9 +13,9 @@ use vte::{Params, Perform};
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MouseMode {
     None,
-    X10,   // 1000: press/release
-    Drag,  // 1002: + motion con boton
-    Any,   // 1003: todo movimiento
+    X10,  // 1000: press/release
+    Drag, // 1002: + motion con boton
+    Any,  // 1003: todo movimiento
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -139,7 +139,11 @@ impl Term {
     fn template(&self) -> Cell {
         Cell {
             ch: ' ',
-            attrs: Attrs { fg: Color::Default, bg: self.attrs.bg, flags: 0 },
+            attrs: Attrs {
+                fg: Color::Default,
+                bg: self.attrs.bg,
+                flags: 0,
+            },
         }
     }
 
@@ -155,13 +159,32 @@ impl Term {
         }
         // DEC Special Graphics (line drawing)
         match c {
-            '`' => '◆', 'a' => '▒', 'f' => '°', 'g' => '±',
-            'j' => '┘', 'k' => '┐', 'l' => '┌', 'm' => '└',
-            'n' => '┼', 'o' => '⎺', 'p' => '⎻', 'q' => '─',
-            'r' => '⎼', 's' => '⎽', 't' => '├', 'u' => '┤',
-            'v' => '┴', 'w' => '┬', 'x' => '│', 'y' => '≤',
-            'z' => '≥', '{' => 'π', '|' => '≠', '}' => '£',
-            '~' => '·', '_' => ' ',
+            '`' => '◆',
+            'a' => '▒',
+            'f' => '°',
+            'g' => '±',
+            'j' => '┘',
+            'k' => '┐',
+            'l' => '┌',
+            'm' => '└',
+            'n' => '┼',
+            'o' => '⎺',
+            'p' => '⎻',
+            'q' => '─',
+            'r' => '⎼',
+            's' => '⎽',
+            't' => '├',
+            'u' => '┤',
+            'v' => '┴',
+            'w' => '┬',
+            'x' => '│',
+            'y' => '≤',
+            'z' => '≥',
+            '{' => 'π',
+            '|' => '≠',
+            '}' => '£',
+            '~' => '·',
+            '_' => ' ',
             _ => c,
         }
     }
@@ -241,7 +264,10 @@ impl Term {
             if width == 2 && x + 1 < cols {
                 row.cells[x + 1] = Cell {
                     ch: ' ',
-                    attrs: Attrs { flags: attrs.flags | WIDE_CONT, ..attrs },
+                    attrs: Attrs {
+                        flags: attrs.flags | WIDE_CONT,
+                        ..attrs
+                    },
                 };
             }
         }
@@ -467,7 +493,11 @@ impl Term {
         match rest.first()? {
             5 => Some((Color::Indexed(*rest.get(1)? as u8), 2)),
             2 => Some((
-                Color::Rgb(*rest.get(1)? as u8, *rest.get(2)? as u8, *rest.get(3)? as u8),
+                Color::Rgb(
+                    *rest.get(1)? as u8,
+                    *rest.get(2)? as u8,
+                    *rest.get(3)? as u8,
+                ),
                 4,
             )),
             _ => None,
@@ -620,10 +650,22 @@ pub fn xterm_256(idx: u8) -> (u8, u8, u8) {
     if i < 16 {
         // fallback si no hay tema
         let base = [
-            (0, 0, 0), (205, 0, 0), (0, 205, 0), (205, 205, 0),
-            (0, 0, 238), (205, 0, 205), (0, 205, 205), (229, 229, 229),
-            (127, 127, 127), (255, 0, 0), (0, 255, 0), (255, 255, 0),
-            (92, 92, 255), (255, 0, 255), (0, 255, 255), (255, 255, 255),
+            (0, 0, 0),
+            (205, 0, 0),
+            (0, 205, 0),
+            (205, 205, 0),
+            (0, 0, 238),
+            (205, 0, 205),
+            (0, 205, 205),
+            (229, 229, 229),
+            (127, 127, 127),
+            (255, 0, 0),
+            (0, 255, 0),
+            (255, 255, 0),
+            (92, 92, 255),
+            (255, 0, 255),
+            (0, 255, 255),
+            (255, 255, 255),
         ];
         return base[i as usize];
     }
@@ -649,7 +691,11 @@ fn first(items: &[Vec<u16>], i: usize, default: u16) -> u16 {
         .and_then(|s| s.first())
         .copied()
         .unwrap_or(default);
-    if v == 0 && default != 0 { default } else { v }
+    if v == 0 && default != 0 {
+        default
+    } else {
+        v
+    }
 }
 
 fn b64_decode(s: &[u8]) -> Option<Vec<u8>> {
@@ -825,7 +871,11 @@ impl Perform for Term {
             10 | 11 => {
                 let q = join(1);
                 if q == "?" {
-                    let (r, g, b) = if code == 10 { self.theme.fg } else { self.theme.bg };
+                    let (r, g, b) = if code == 10 {
+                        self.theme.fg
+                    } else {
+                        self.theme.bg
+                    };
                     let resp = format!(
                         "\x1b]{};rgb:{:02x}{:02x}/{:02x}{:02x}/{:02x}{:02x}\x07",
                         code, r, r, g, g, b, b
@@ -906,7 +956,11 @@ impl Perform for Term {
                 }
             }
             ('B', _) => {
-                let bot = if self.modes.origin { self.grid.scroll_bottom } else { self.grid.rows - 1 };
+                let bot = if self.modes.origin {
+                    self.grid.scroll_bottom
+                } else {
+                    self.grid.rows - 1
+                };
                 let c = &mut self.grid.screen_mut().cursor;
                 c.y = (c.y + n).min(bot);
                 c.pending_wrap = false;
@@ -936,7 +990,14 @@ impl Perform for Term {
             }
             ('G', _) | ('`', _) => {
                 let y = self.grid.screen().cursor.y as i64;
-                self.move_to(first(&items, 0, 1) as i64 - 1, y - if self.modes.origin { self.grid.scroll_top as i64 } else { 0 });
+                self.move_to(
+                    first(&items, 0, 1) as i64 - 1,
+                    y - if self.modes.origin {
+                        self.grid.scroll_top as i64
+                    } else {
+                        0
+                    },
+                );
             }
             ('H', _) | ('f', _) => {
                 let row = first(&items, 0, 1) as i64 - 1;
@@ -1047,7 +1108,11 @@ impl Perform for Term {
                 5 => self.respond("\x1b[0n"),
                 6 => {
                     let c = self.grid.screen().cursor;
-                    let y = if self.modes.origin { c.y - self.grid.scroll_top } else { c.y };
+                    let y = if self.modes.origin {
+                        c.y - self.grid.scroll_top
+                    } else {
+                        c.y
+                    };
                     let resp = format!("\x1b[{};{}R", y + 1, c.x + 1);
                     self.respond(&resp);
                 }
@@ -1121,7 +1186,10 @@ impl Perform for Term {
                 // DECALN
                 let cols = self.grid.cols;
                 let rows = self.grid.rows;
-                let cell = Cell { ch: 'E', attrs: Attrs::default() };
+                let cell = Cell {
+                    ch: 'E',
+                    attrs: Attrs::default(),
+                };
                 for y in 0..rows {
                     let screen = self.grid.screen_mut();
                     screen.lines[y] = super::grid::Row::blank(cols, cell);

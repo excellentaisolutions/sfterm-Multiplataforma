@@ -39,7 +39,10 @@ pub fn start(app: AppHandle) {
         let op = cmd["op"].as_str().unwrap_or("");
         match op {
             "snap" => {
-                let path = cmd["path"].as_str().unwrap_or("/tmp/sfterm-snap.png").to_string();
+                let path = cmd["path"]
+                    .as_str()
+                    .unwrap_or("/tmp/sfterm-snap.png")
+                    .to_string();
                 snap(&app, path);
             }
             "eval" => {
@@ -48,7 +51,11 @@ pub fn start(app: AppHandle) {
                     let r = w.eval(js.as_str());
                     let _ = std::fs::write(
                         DONE_FILE,
-                        if r.is_ok() { "ok".into() } else { format!("error: {r:?}") },
+                        if r.is_ok() {
+                            "ok".into()
+                        } else {
+                            format!("error: {r:?}")
+                        },
                     );
                 } else {
                     let _ = std::fs::write(DONE_FILE, "error: no window");
@@ -70,8 +77,8 @@ pub fn start(app: AppHandle) {
                         let wk_ptr = webview.inner() as *mut WKWebView;
                         let wk: &WKWebView = &*wk_ptr;
                         let script = NSString::from_str(&wrapped);
-                        let block = RcBlock::new(
-                            move |result: *mut AnyObject, err: *mut NSError| {
+                        let block =
+                            RcBlock::new(move |result: *mut AnyObject, err: *mut NSError| {
                                 let out = if !result.is_null() {
                                     // el JS envuelto SIEMPRE devuelve string
                                     (*(result as *mut NSString)).to_string()
@@ -81,8 +88,7 @@ pub fn start(app: AppHandle) {
                                     "error: nil".into()
                                 };
                                 let _ = std::fs::write(DONE_FILE, out);
-                            },
-                        );
+                            });
                         wk.evaluateJavaScript_completionHandler(&script, Some(&block));
                     });
                     if res.is_err() {
@@ -124,54 +130,51 @@ pub fn snap_to(
         return;
     };
     let done2 = done.clone();
-    let res = window.with_webview(move |webview| {
-        unsafe {
-            use block2::RcBlock;
-            use objc2_app_kit::{NSBitmapImageRep, NSImage};
-            use objc2_foundation::NSError;
-            use objc2_web_kit::{WKSnapshotConfiguration, WKWebView};
+    let res = window.with_webview(move |webview| unsafe {
+        use block2::RcBlock;
+        use objc2_app_kit::{NSBitmapImageRep, NSImage};
+        use objc2_foundation::NSError;
+        use objc2_web_kit::{WKSnapshotConfiguration, WKWebView};
 
-            let mtm = objc2::MainThreadMarker::new()
-                .expect("with_webview corre en main thread");
-            let wk_ptr = webview.inner() as *mut WKWebView;
-            let wk: &WKWebView = &*wk_ptr;
-            let config = WKSnapshotConfiguration::new(mtm);
-            let path2 = path.clone();
-            let done3 = done2.clone();
-            let block = RcBlock::new(move |img: *mut NSImage, err: *mut NSError| {
-                if img.is_null() {
-                    let msg = if err.is_null() {
-                        "snapshot nil".to_string()
-                    } else {
-                        format!("snapshot error: {:?}", &*err)
-                    };
-                    done3(Err(msg));
-                    return;
-                }
-                let image: &NSImage = &*img;
-                let Some(tiff) = image.TIFFRepresentation() else {
-                    done3(Err("sin tiff".into()));
-                    return;
+        let mtm = objc2::MainThreadMarker::new().expect("with_webview corre en main thread");
+        let wk_ptr = webview.inner() as *mut WKWebView;
+        let wk: &WKWebView = &*wk_ptr;
+        let config = WKSnapshotConfiguration::new(mtm);
+        let path2 = path.clone();
+        let done3 = done2.clone();
+        let block = RcBlock::new(move |img: *mut NSImage, err: *mut NSError| {
+            if img.is_null() {
+                let msg = if err.is_null() {
+                    "snapshot nil".to_string()
+                } else {
+                    format!("snapshot error: {:?}", &*err)
                 };
-                let Some(rep) = NSBitmapImageRep::imageRepWithData(&tiff) else {
-                    done3(Err("sin bitmap rep".into()));
-                    return;
-                };
-                let props: Retained<NSDictionary<_, AnyObject>> = NSDictionary::new();
-                let Some(png) =
-                    rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &props)
-                else {
-                    done3(Err("sin png".into()));
-                    return;
-                };
-                let bytes = png.to_vec();
-                match std::fs::write(&path2, bytes) {
-                    Ok(_) => done3(Ok(())),
-                    Err(e) => done3(Err(format!("write {e}"))),
-                }
-            });
-            wk.takeSnapshotWithConfiguration_completionHandler(Some(&config), &block);
-        }
+                done3(Err(msg));
+                return;
+            }
+            let image: &NSImage = &*img;
+            let Some(tiff) = image.TIFFRepresentation() else {
+                done3(Err("sin tiff".into()));
+                return;
+            };
+            let Some(rep) = NSBitmapImageRep::imageRepWithData(&tiff) else {
+                done3(Err("sin bitmap rep".into()));
+                return;
+            };
+            let props: Retained<NSDictionary<_, AnyObject>> = NSDictionary::new();
+            let Some(png) =
+                rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &props)
+            else {
+                done3(Err("sin png".into()));
+                return;
+            };
+            let bytes = png.to_vec();
+            match std::fs::write(&path2, bytes) {
+                Ok(_) => done3(Ok(())),
+                Err(e) => done3(Err(format!("write {e}"))),
+            }
+        });
+        wk.takeSnapshotWithConfiguration_completionHandler(Some(&config), &block);
     });
     if res.is_err() {
         done(Err(format!("with_webview {res:?}")));

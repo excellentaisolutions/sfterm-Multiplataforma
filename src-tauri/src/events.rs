@@ -61,7 +61,11 @@ pub fn emit_to(p: &Path, t: u64, ev: &str, fields: Value) {
             let _ = std::fs::rename(p, p.with_extension("jsonl.1"));
         }
     }
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(p)
+    {
         let _ = writeln!(f, "{obj}");
     }
 }
@@ -79,7 +83,12 @@ mod tests {
         let dir = tmp("emit");
         let _ = std::fs::remove_dir_all(&dir);
         let p = dir.join("events.jsonl");
-        emit_to(&p, 111, "block_end", serde_json::json!({"term": 3, "exit": 1, "cmd": "npm test"}));
+        emit_to(
+            &p,
+            111,
+            "block_end",
+            serde_json::json!({"term": 3, "exit": 1, "cmd": "npm test"}),
+        );
         emit_to(&p, 222, "bell", serde_json::json!({"term": 2}));
         let raw = std::fs::read_to_string(&p).unwrap();
         let lines: Vec<&str> = raw.lines().collect();
@@ -108,7 +117,11 @@ mod tests {
         emit_to(&p, 333, "term_spawned", serde_json::json!({"term": 9}));
         assert!(p.with_extension("jsonl.1").exists(), "debio rotar a .1");
         let raw = std::fs::read_to_string(&p).unwrap();
-        assert_eq!(raw.lines().count(), 1, "el archivo nuevo solo trae el evento fresco");
+        assert_eq!(
+            raw.lines().count(),
+            1,
+            "el archivo nuevo solo trae el evento fresco"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

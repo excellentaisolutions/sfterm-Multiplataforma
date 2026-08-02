@@ -174,7 +174,8 @@ where
     F: FnOnce(mpsc::Sender<Result<T, String>>) + Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
-    app.run_on_main_thread(move || f(tx)).map_err(|e| e.to_string())?;
+    app.run_on_main_thread(move || f(tx))
+        .map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         rx.recv_timeout(Duration::from_secs(secs))
             .map_err(|_| "timeout esperando al main thread".to_string())?
@@ -229,7 +230,10 @@ pub fn normalize_url(raw: &str) -> Result<String, String> {
     if looks_like_host {
         return Ok(format!("https://{u}"));
     }
-    Ok(format!("https://www.google.com/search?q={}", search_encode(u)))
+    Ok(format!(
+        "https://www.google.com/search?q={}",
+        search_encode(u)
+    ))
 }
 
 /// Percent-encoding minimo para el query de busqueda del omnibox.
@@ -387,7 +391,11 @@ pub async fn browser_place(
             let ns = win.ns_window().map_err(|e| e.to_string())? as *mut NSWindow;
             let content = (*ns).contentView().ok_or("sin contentView")?;
             let b = content.bounds();
-            let scale = if inner_w > 0.0 { b.size.width / inner_w } else { 1.0 };
+            let scale = if inner_w > 0.0 {
+                b.size.width / inner_w
+            } else {
+                1.0
+            };
             let (px, pw, ph) = (x * scale, w * scale, h * scale);
             let ns_y = b.size.height - (y * scale) - ph;
             with_view(id, |wk| {
@@ -425,10 +433,8 @@ pub async fn browser_goto(app: AppHandle, id: u32, url: String) -> Result<String
                         .parent()
                         .map(|p| p.to_string_lossy().into_owned())
                         .unwrap_or_else(|| "/".into());
-                    let dir_url = NSURL::fileURLWithPath_isDirectory(
-                        &NSString::from_str(&dir),
-                        true,
-                    );
+                    let dir_url =
+                        NSURL::fileURLWithPath_isDirectory(&NSString::from_str(&dir), true);
                     wk.loadFileURL_allowingReadAccessToURL(&file, &dir_url)
                         .ok_or(format!("no se pudo cargar: {path}"))?;
                     return Ok(());
@@ -614,7 +620,10 @@ unsafe fn prestar_cuerpo(
     // layout ese dia. Un render que depende del tamaño de tu ventana no es un
     // render, es una casualidad.
     if let Some((w, h)) = medida {
-        wk.setFrame(NSRect::new(NSPoint::new(-20000.0, -20000.0), NSSize::new(w, h)));
+        wk.setFrame(NSRect::new(
+            NSPoint::new(-20000.0, -20000.0),
+            NSSize::new(w, h),
+        ));
         wk.setHidden(false);
         return Some(CuerpoPrestado { frame, oculto });
     }
@@ -624,7 +633,10 @@ unsafe fn prestar_cuerpo(
     let (w, h) = LAST_SIZE
         .with(|m| m.borrow().get(&id).copied())
         .unwrap_or(SNAP_FALLBACK);
-    wk.setFrame(NSRect::new(NSPoint::new(-20000.0, -20000.0), NSSize::new(w, h)));
+    wk.setFrame(NSRect::new(
+        NSPoint::new(-20000.0, -20000.0),
+        NSSize::new(w, h),
+    ));
     wk.setHidden(false);
     Some(CuerpoPrestado { frame, oculto })
 }
@@ -833,7 +845,8 @@ pub async fn browser_pdf(app: AppHandle, id: u32, path: String) -> Result<String
                                 format!("pdf error: {:?}", &*err)
                             });
                         }
-                        std::fs::write(&dest, (*data).to_vec()).map_err(|e| format!("write {e}"))?;
+                        std::fs::write(&dest, (*data).to_vec())
+                            .map_err(|e| format!("write {e}"))?;
                         Ok(dest.clone())
                     })();
                     devolver_cuerpo(&wk2, prestado.borrow_mut().take());
@@ -857,11 +870,23 @@ mod tests {
     #[test]
     fn normalize_url_web_y_hosts() {
         assert_eq!(normalize_url("github.com").unwrap(), "https://github.com");
-        assert_eq!(normalize_url(" https://x.dev/a ").unwrap(), "https://x.dev/a");
-        assert_eq!(normalize_url("http://localhost:3000").unwrap(), "http://localhost:3000");
-        assert_eq!(normalize_url("localhost:8080").unwrap(), "https://localhost:8080");
+        assert_eq!(
+            normalize_url(" https://x.dev/a ").unwrap(),
+            "https://x.dev/a"
+        );
+        assert_eq!(
+            normalize_url("http://localhost:3000").unwrap(),
+            "http://localhost:3000"
+        );
+        assert_eq!(
+            normalize_url("localhost:8080").unwrap(),
+            "https://localhost:8080"
+        );
         assert_eq!(normalize_url("about:blank").unwrap(), "about:blank");
-        assert!(normalize_url("javascript:alert(1)").is_err(), "inyeccion NO");
+        assert!(
+            normalize_url("javascript:alert(1)").is_err(),
+            "inyeccion NO"
+        );
         assert!(normalize_url("data:text/html,x").is_err());
         assert!(normalize_url("").is_err());
     }
@@ -886,7 +911,10 @@ mod tests {
     #[test]
     fn normalize_url_file_y_rutas_de_disco() {
         // LIBERTAD 29 jul: file:// entra (lo inicia Daniel/agente por barra/gate)
-        assert_eq!(normalize_url("file:///tmp/x.html").unwrap(), "file:///tmp/x.html");
+        assert_eq!(
+            normalize_url("file:///tmp/x.html").unwrap(),
+            "file:///tmp/x.html"
+        );
         assert_eq!(
             normalize_url("/Users/d/mi reporte.html").unwrap(),
             "file:///Users/d/mi%20reporte.html",

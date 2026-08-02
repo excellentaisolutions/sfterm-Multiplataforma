@@ -16,11 +16,6 @@ mod debug_harness;
 #[cfg(target_os = "windows")]
 #[path = "platform/windows/debug_harness.rs"]
 mod debug_harness;
-#[cfg(target_os = "macos")]
-mod voice;
-#[cfg(target_os = "windows")]
-#[path = "platform/windows/voice.rs"]
-mod voice;
 mod engine;
 mod events;
 mod fonts;
@@ -36,6 +31,11 @@ mod pty;
 pub mod ptyd;
 mod ptyd_bridge;
 mod session;
+#[cfg(target_os = "macos")]
+mod voice;
+#[cfg(target_os = "windows")]
+#[path = "platform/windows/voice.rs"]
+mod voice;
 
 /// ⌘R: relanza la app COMPLETA (proceso nuevo → toma el binario recien
 /// instalado; la sesion se restaura sola como en cualquier arranque).
@@ -58,7 +58,9 @@ pub fn run() {
     // un config dir redirigido no comparte nada con la instancia real. Sin
     // esta excepcion el banco es imposible: la instancia de prueba solo
     // enfocaria la ventana de la real y moriria.
-    let aislada = std::env::var("SFTERM_CONFIG_DIR").map(|v| !v.trim().is_empty()).unwrap_or(false);
+    let aislada = std::env::var("SFTERM_CONFIG_DIR")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false);
     let builder = if aislada {
         builder
     } else {

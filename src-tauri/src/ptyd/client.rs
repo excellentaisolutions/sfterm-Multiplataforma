@@ -75,7 +75,10 @@ impl Client {
             next: AtomicU32::new(1),
             inbox,
         };
-        match c.request(&Req::Hello { proto: PROTO, client: who.into() })? {
+        match c.request(&Req::Hello {
+            proto: PROTO,
+            client: who.into(),
+        })? {
             Res::Hello { proto, .. } if proto == PROTO => Ok(c),
             Res::Err { msg } => Err(io::Error::other(msg)),
             other => Err(io::Error::other(format!("handshake raro: {other:?}"))),
@@ -195,7 +198,10 @@ pub fn start_daemon() -> io::Result<()> {
         .open(crate::ptyd::log_path())?;
     let err = log.try_clone()?;
     let mut cmd = std::process::Command::new(exe);
-    cmd.arg("--ptyd").stdout(log).stderr(err).stdin(std::process::Stdio::null());
+    cmd.arg("--ptyd")
+        .stdout(log)
+        .stderr(err)
+        .stdin(std::process::Stdio::null());
     // setsid: sesion propia. Sin esto el daemon comparte grupo con la app y una
     // señal al grupo (o cerrar la terminal que la lanzo) se lo lleva por
     // delante — justo lo que este proceso existe para evitar.

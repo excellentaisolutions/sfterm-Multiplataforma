@@ -145,12 +145,20 @@ pub fn start_ticker(app: AppHandle) {
                         TermEvent::Cwd(p) => ("cwd", p),
                         TermEvent::Clipboard(t) => ("clipboard", t),
                     };
-                    evts.push(EngineEvt { id, kind: kind.into(), data });
+                    evts.push(EngineEvt {
+                        id,
+                        kind: kind.into(),
+                        data,
+                    });
                 }
                 // nervio aferente: bloques nacidos/terminados + silencios
                 {
                     let now = std::time::Instant::now();
-                    let EngineSession { term, nervio: track, .. } = &mut *s;
+                    let EngineSession {
+                        term,
+                        nervio: track,
+                        ..
+                    } = &mut *s;
                     nervio::scan(term, track, id, now, &mut |ev, fields| {
                         // needs_attention tambien al frontend (badge en el
                         // HOME chat-first); reason viaja en data ("quiet")
@@ -160,7 +168,11 @@ pub fn start_ticker(app: AppHandle) {
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("")
                                 .to_string();
-                            evts.push(EngineEvt { id, kind: "attention".into(), data: reason });
+                            evts.push(EngineEvt {
+                                id,
+                                kind: "attention".into(),
+                                data: reason,
+                            });
                         }
                         crate::events::emit(ev, fields);
                     });
@@ -307,7 +319,11 @@ pub fn engine_block_text(
 }
 
 /// Logica pura de block_text (testeable sin State de tauri).
-pub fn block_text_of(term: &Term, block_id: Option<u64>, max_lines: Option<usize>) -> Option<BlockText> {
+pub fn block_text_of(
+    term: &Term,
+    block_id: Option<u64>,
+    max_lines: Option<usize>,
+) -> Option<BlockText> {
     let block = match block_id {
         Some(bid) => term.blocks.list.iter().find(|b| b.id == bid),
         None => term.blocks.last(),
@@ -371,9 +387,17 @@ pub fn engine_range_text(
     while abs <= end_abs {
         if let Some(row) = s.term.grid.line_abs(abs) {
             // wrapped: sin trim (los espacios del borde son contenido real)
-            let full = if row.wrapped && abs != end_abs { row.text_raw() } else { row.text() };
+            let full = if row.wrapped && abs != end_abs {
+                row.text_raw()
+            } else {
+                row.text()
+            };
             let chars: Vec<char> = full.chars().collect();
-            let from = if abs == start_abs { start_col.min(chars.len()) } else { 0 };
+            let from = if abs == start_abs {
+                start_col.min(chars.len())
+            } else {
+                0
+            };
             let to = if abs == end_abs {
                 (end_col + 1).min(chars.len())
             } else {
@@ -552,8 +576,7 @@ fi
 "#;
 
 #[cfg(target_os = "windows")]
-const POWERSHELL_PROFILE: &str =
-    include_str!("../../resources/shell/sfterm-profile.ps1");
+const POWERSHELL_PROFILE: &str = include_str!("../../resources/shell/sfterm-profile.ps1");
 
 /// Escribe los archivos de integracion (cada arranque: siempre frescos).
 #[cfg(target_os = "macos")]

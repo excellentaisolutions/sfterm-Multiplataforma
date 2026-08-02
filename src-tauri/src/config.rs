@@ -127,7 +127,10 @@ fn migrate_legacy_layout_from(
     Ok(())
 }
 
-fn move_without_overwrite(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+fn move_without_overwrite(
+    source: &std::path::Path,
+    target: &std::path::Path,
+) -> std::io::Result<()> {
     let metadata = std::fs::symlink_metadata(source)?;
     if metadata.file_type().is_symlink() {
         return Err(std::io::Error::other(format!(
@@ -154,7 +157,10 @@ fn move_without_overwrite(source: &std::path::Path, target: &std::path::Path) ->
         return Ok(());
     }
     let mut input = std::fs::File::open(source)?;
-    let mut output = std::fs::OpenOptions::new().write(true).create_new(true).open(target)?;
+    let mut output = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)?;
     let copied = match std::io::copy(&mut input, &mut output) {
         Ok(copied) => copied,
         Err(error) => {
@@ -204,7 +210,10 @@ mod config_dir_tests {
             config_dir_from(Some("/tmp/sfterm-bench")),
             std::path::PathBuf::from("/tmp/sfterm-bench")
         );
-        assert_eq!(config_dir_from(Some("~/bench-sfterm")), home.join("bench-sfterm"));
+        assert_eq!(
+            config_dir_from(Some("~/bench-sfterm")),
+            home.join("bench-sfterm")
+        );
     }
 
     #[test]
@@ -225,8 +234,14 @@ mod config_dir_tests {
         std::fs::write(legacy.join("shell").join("profile.ps1"), "perfil").unwrap();
 
         super::migrate_legacy_layout_from(&legacy, &config, &state, &cache).unwrap();
-        assert_eq!(std::fs::read_to_string(config.join("config.toml")).unwrap(), "nuevo");
-        assert_eq!(std::fs::read_to_string(legacy.join("config.toml")).unwrap(), "legacy");
+        assert_eq!(
+            std::fs::read_to_string(config.join("config.toml")).unwrap(),
+            "nuevo"
+        );
+        assert_eq!(
+            std::fs::read_to_string(legacy.join("config.toml")).unwrap(),
+            "legacy"
+        );
         assert!(state.join("session.json").is_file());
         assert!(state.join("gate").join("events.jsonl").is_file());
         assert!(cache.join("shell").join("profile.ps1").is_file());
@@ -686,7 +701,9 @@ pub fn config_path() -> String {
 pub fn config_set(entries: Vec<(String, serde_json::Value)>) -> Result<(), String> {
     let path = config_file();
     let raw = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut doc: toml_edit::DocumentMut = raw.parse().map_err(|e: toml_edit::TomlError| e.to_string())?;
+    let mut doc: toml_edit::DocumentMut = raw
+        .parse()
+        .map_err(|e: toml_edit::TomlError| e.to_string())?;
     for (dotted, val) in entries {
         let parts: Vec<&str> = dotted.split('.').collect();
         let item = json_to_toml_item(&val)?;
@@ -817,7 +834,10 @@ panes = ["agent", ""]
         assert!(doc["themes"].get("graphite").is_some());
         assert!(doc["themes"].get("midnight").is_some());
         assert!(doc["themes"].get("arbrain").is_some());
-        assert_eq!(doc["themes"]["titanium"]["accent"].as_str(), Some("#ff9101"));
+        assert_eq!(
+            doc["themes"]["titanium"]["accent"].as_str(),
+            Some("#ff9101")
+        );
         // el theme elegido por el usuario NO se pisa por el nuevo default
         assert_eq!(doc["appearance"]["theme"].as_str(), Some("titanium"));
         assert_eq!(doc["general"]["config_version"].as_integer(), Some(7));
@@ -836,7 +856,10 @@ panes = ["agent", ""]
     #[test]
     fn migracion_idempotente() {
         let out = migrate_config(V1_USER_CONFIG).expect("primera pasada migra");
-        assert!(migrate_config(&out).is_none(), "segunda pasada no cambia nada");
+        assert!(
+            migrate_config(&out).is_none(),
+            "segunda pasada no cambia nada"
+        );
     }
 
     #[test]
@@ -961,22 +984,23 @@ next_terminal = "cmd+alt+n"
 pub fn start_config_watcher(app: AppHandle) {
     let state = app.state::<ConfigState>();
     let app2 = app.clone();
-    let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
-        if let Ok(event) = res {
-            let hits = event
-                .paths
-                .iter()
-                .any(|p| p.file_name().map(|f| f == "config.toml").unwrap_or(false));
-            if hits {
-                // pequeño debounce: los editores escriben en rafagas
-                std::thread::sleep(std::time::Duration::from_millis(120));
-                if let Ok(cfg) = config_get() {
-                    let _ = app2.emit("config://changed", cfg);
+    let mut watcher =
+        notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                let hits = event
+                    .paths
+                    .iter()
+                    .any(|p| p.file_name().map(|f| f == "config.toml").unwrap_or(false));
+                if hits {
+                    // pequeño debounce: los editores escriben en rafagas
+                    std::thread::sleep(std::time::Duration::from_millis(120));
+                    if let Ok(cfg) = config_get() {
+                        let _ = app2.emit("config://changed", cfg);
+                    }
                 }
             }
-        }
-    })
-    .ok();
+        })
+        .ok();
     if let Some(w) = watcher.as_mut() {
         let _ = std::fs::create_dir_all(config_dir());
         let _ = w.watch(&config_dir(), RecursiveMode::NonRecursive);

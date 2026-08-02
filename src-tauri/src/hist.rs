@@ -108,13 +108,17 @@ pub fn index(roots: &[PathBuf], days: f64, limit: usize) -> Vec<SessionCard> {
             Some(root.to_string_lossy().to_string())
         };
         let projects = root.join("projects");
-        let Ok(slugs) = std::fs::read_dir(&projects) else { continue };
+        let Ok(slugs) = std::fs::read_dir(&projects) else {
+            continue;
+        };
         for slug in slugs.flatten() {
             let dir = slug.path();
             if !dir.is_dir() {
                 continue;
             }
-            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
             for e in entries.flatten() {
                 let p = e.path();
                 if !p.extension().map(|x| x == "jsonl").unwrap_or(false) {
@@ -197,7 +201,10 @@ fn build_card(
         }
         if first_prompt.is_none()
             && v.get("type").and_then(|x| x.as_str()) == Some("user")
-            && !v.get("isSidechain").and_then(|x| x.as_bool()).unwrap_or(false)
+            && !v
+                .get("isSidechain")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false)
             && !v.get("isMeta").and_then(|x| x.as_bool()).unwrap_or(false)
         {
             if let Some(t) = user_text(&v) {
@@ -266,7 +273,11 @@ fn user_text(v: &serde_json::Value) -> Option<String> {
 /// El comando de la vitrina: historial indexado, mas reciente primero.
 #[tauri::command]
 pub fn sessions_index(days: Option<f64>, limit: Option<usize>) -> Vec<SessionCard> {
-    index(&roots_from_config(), days.unwrap_or(90.0), limit.unwrap_or(250))
+    index(
+        &roots_from_config(),
+        days.unwrap_or(90.0),
+        limit.unwrap_or(250),
+    )
 }
 
 #[cfg(test)]
@@ -288,7 +299,10 @@ mod tests {
         let t1 = std::time::Instant::now();
         let _ = index(&roots, 90.0, 250);
         let caliente = t1.elapsed();
-        println!("cards: {} · frio {frio:?} · caliente {caliente:?}", cards.len());
+        println!(
+            "cards: {} · frio {frio:?} · caliente {caliente:?}",
+            cards.len()
+        );
         for c in cards.iter().take(12) {
             println!(
                 "  [{}] {} · {} · {}",
@@ -350,7 +364,10 @@ mod tests {
         write(
             &root,
             "cccccccc-3333-4333-8333-333333333333.jsonl",
-            &format!("{{\"type\":\"queue-operation\",\"operation\":\"enqueue\"}}\n{}", relleno(600)),
+            &format!(
+                "{{\"type\":\"queue-operation\",\"operation\":\"enqueue\"}}\n{}",
+                relleno(600)
+            ),
         );
 
         let cards = index(&[root.clone()], 0.0, 50);
@@ -360,7 +377,10 @@ mod tests {
         assert_eq!(c.cwd, "/tmp/proyecto");
         assert_eq!(c.title.as_deref(), Some("Arreglar el scroll del lector"));
         // root == este tempdir (no default) → config_dir viaja
-        assert_eq!(c.config_dir.as_deref(), Some(root.to_string_lossy().as_ref()));
+        assert_eq!(
+            c.config_dir.as_deref(),
+            Some(root.to_string_lossy().as_ref())
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -381,7 +401,10 @@ mod tests {
         );
         let cards = index(&[root.clone()], 0.0, 50);
         assert_eq!(cards.len(), 1);
-        assert_eq!(cards[0].title.as_deref(), Some("quiero un dashboard de ventas"));
+        assert_eq!(
+            cards[0].title.as_deref(),
+            Some("quiero un dashboard de ventas")
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

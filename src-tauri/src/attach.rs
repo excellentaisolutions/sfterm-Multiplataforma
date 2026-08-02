@@ -44,7 +44,11 @@ pub fn attach_save(data_b64: String, ext: String) -> Result<String, String> {
         .filter(|c| c.is_ascii_alphanumeric())
         .take(5)
         .collect();
-    let ext = if safe_ext.is_empty() { "png".into() } else { safe_ext };
+    let ext = if safe_ext.is_empty() {
+        "png".into()
+    } else {
+        safe_ext
+    };
     let bytes = b64_decode(&data_b64).ok_or("base64 invalido")?;
     if bytes.is_empty() {
         return Err("adjunto vacio".into());
@@ -115,11 +119,7 @@ fn image_data_uri(path: &str) -> Result<String, String> {
 /// Saca la imagen `index` (orden de documento) del mensaje `uuid` de un
 /// transcript y la devuelve como data URI listo para un <img src>.
 #[tauri::command]
-pub async fn transcript_image(
-    path: String,
-    uuid: String,
-    index: usize,
-) -> Result<String, String> {
+pub async fn transcript_image(path: String, uuid: String, index: usize) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let path = crate::pty::expand_tilde(&path);
         let f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
@@ -146,7 +146,9 @@ pub async fn transcript_image(
             if v.get("uuid").and_then(|u| u.as_str()) != Some(uuid.as_str()) {
                 continue;
             }
-            let Some(msg) = v.get("message") else { continue };
+            let Some(msg) = v.get("message") else {
+                continue;
+            };
             let imgs = collect_images(msg);
             let Some((media, data)) = imgs.into_iter().nth(index) else {
                 return Err(format!("el mensaje no tiene imagen #{index}"));
@@ -242,8 +244,16 @@ fn b64_encode(bytes: &[u8]) -> String {
         let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
         out.push(TBL[(n >> 18) as usize & 63] as char);
         out.push(TBL[(n >> 12) as usize & 63] as char);
-        out.push(if tro.len() > 1 { TBL[(n >> 6) as usize & 63] as char } else { '=' });
-        out.push(if tro.len() > 2 { TBL[n as usize & 63] as char } else { '=' });
+        out.push(if tro.len() > 1 {
+            TBL[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if tro.len() > 2 {
+            TBL[n as usize & 63] as char
+        } else {
+            '='
+        });
     }
     out
 }
@@ -268,7 +278,11 @@ mod tests {
         std::fs::write(&p, &png).unwrap();
 
         let uri = image_data_uri(p.to_str().unwrap()).unwrap();
-        assert!(uri.starts_with("data:image/png;base64,"), "mime equivocado: {}", &uri[..40]);
+        assert!(
+            uri.starts_with("data:image/png;base64,"),
+            "mime equivocado: {}",
+            &uri[..40]
+        );
         let vuelta = b64_decode(uri.split_once(",").unwrap().1).unwrap();
         assert_eq!(vuelta, png, "los bytes no sobrevivieron el viaje");
 
@@ -276,8 +290,12 @@ mod tests {
         // fallaba mudo: ese fue el bug)
         let txt = dir.join("notas.txt");
         std::fs::write(&txt, b"hola").unwrap();
-        assert!(image_data_uri(txt.to_str().unwrap()).unwrap_err().contains("no pintable"));
-        assert!(image_data_uri("/no/existe/foto.png").unwrap_err().contains("no pude leer"));
+        assert!(image_data_uri(txt.to_str().unwrap())
+            .unwrap_err()
+            .contains("no pintable"));
+        assert!(image_data_uri("/no/existe/foto.png")
+            .unwrap_err()
+            .contains("no pude leer"));
 
         let _ = std::fs::remove_dir_all(&dir);
     }

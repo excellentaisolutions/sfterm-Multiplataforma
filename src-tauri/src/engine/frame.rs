@@ -86,17 +86,39 @@ pub fn build(term: &mut Term, seq: u32) -> Vec<u8> {
 
     let m = &term.modes;
     let mut modes = 0u32;
-    if m.app_cursor { modes |= 1; }
-    if m.bracketed_paste { modes |= 2; }
-    if m.mouse == MouseMode::X10 { modes |= 4; }
-    if m.mouse == MouseMode::Drag { modes |= 8; }
-    if m.mouse == MouseMode::Any { modes |= 16; }
-    if m.mouse_sgr { modes |= 32; }
-    if m.focus_events { modes |= 64; }
-    if m.alt_scroll { modes |= 128; }
-    if m.app_keypad { modes |= 256; }
-    if m.cursor_blink { modes |= 512; }
-    if m.cursor_visible { modes |= 1024; }
+    if m.app_cursor {
+        modes |= 1;
+    }
+    if m.bracketed_paste {
+        modes |= 2;
+    }
+    if m.mouse == MouseMode::X10 {
+        modes |= 4;
+    }
+    if m.mouse == MouseMode::Drag {
+        modes |= 8;
+    }
+    if m.mouse == MouseMode::Any {
+        modes |= 16;
+    }
+    if m.mouse_sgr {
+        modes |= 32;
+    }
+    if m.focus_events {
+        modes |= 64;
+    }
+    if m.alt_scroll {
+        modes |= 128;
+    }
+    if m.app_keypad {
+        modes |= 256;
+    }
+    if m.cursor_blink {
+        modes |= 512;
+    }
+    if m.cursor_visible {
+        modes |= 1024;
+    }
     buf.extend_from_slice(&modes.to_le_bytes());
 
     buf.extend_from_slice(&(term.grid.scrollback.len() as u32).to_le_bytes());

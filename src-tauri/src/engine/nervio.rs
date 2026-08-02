@@ -118,7 +118,9 @@ mod tests {
 
     fn collect(term: &Term, track: &mut NervioTrack, now: Instant) -> Vec<(String, Value)> {
         let mut got = Vec::new();
-        scan(term, track, 7, now, &mut |ev, f| got.push((ev.to_string(), f)));
+        scan(term, track, 7, now, &mut |ev, f| {
+            got.push((ev.to_string(), f))
+        });
         got
     }
 

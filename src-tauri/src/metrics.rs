@@ -51,7 +51,11 @@ fn resolve_process_name(name: &std::ffi::OsStr, cmd: &[std::ffi::OsString]) -> S
     // `codex.js`, y mantiene alineados métricas, lector y term_session.
     let command_line = cmd
         .iter()
-        .map(|part| part.to_string_lossy().replace('\\', "/").to_ascii_lowercase())
+        .map(|part| {
+            part.to_string_lossy()
+                .replace('\\', "/")
+                .to_ascii_lowercase()
+        })
         .collect::<Vec<_>>()
         .join(" ");
     if command_line.contains("node_modules/@anthropic-ai/claude-code/") {
@@ -179,7 +183,11 @@ pub fn start_metrics_loop(app: AppHandle) {
                 if p == my_pid {
                     app_ram += proc_.memory();
                     app_cpu += proc_.cpu_usage();
-                } else if shell_pids.contains(&p) || sessions.iter().any(|(_, sp, _)| is_descendant_of(p, *sp, &HashSet::new())) {
+                } else if shell_pids.contains(&p)
+                    || sessions
+                        .iter()
+                        .any(|(_, sp, _)| is_descendant_of(p, *sp, &HashSet::new()))
+                {
                     workload_ram += proc_.memory();
                 } else if is_descendant_of(p, my_pid, &shell_pids) {
                     // helpers de WebKit y demas hijos de la app (sin contar shells)
@@ -201,7 +209,8 @@ pub fn start_metrics_loop(app: AppHandle) {
                     let cwd = fg_proc
                         .and_then(|p| p.cwd().map(|c| c.to_string_lossy().to_string()))
                         .or_else(|| {
-                            shell_proc.and_then(|p| p.cwd().map(|c| c.to_string_lossy().to_string()))
+                            shell_proc
+                                .and_then(|p| p.cwd().map(|c| c.to_string_lossy().to_string()))
                         })
                         .unwrap_or_default();
                     let cpu = fg_proc.map(|p| p.cpu_usage()).unwrap_or(0.0);
@@ -222,17 +231,26 @@ pub fn start_metrics_loop(app: AppHandle) {
                     .iter()
                     .map(|p| (p.id, p.cpu, p.fg_name.clone()))
                     .collect();
-                scan_hot(&mut hot, &samples, std::time::Instant::now(), &mut |id, name, cpu| {
-                    crate::events::emit(
-                        "needs_attention",
-                        serde_json::json!({ "term": id, "reason": "hot", "proc": name, "cpu": cpu }),
-                    );
-                    // tambien al frontend: badge de atencion visible en el HOME
-                    let _ = app.emit(
-                        "engine://evt",
-                        crate::engine::EngineEvt { id, kind: "attention".into(), data: "hot".into() },
-                    );
-                });
+                scan_hot(
+                    &mut hot,
+                    &samples,
+                    std::time::Instant::now(),
+                    &mut |id, name, cpu| {
+                        crate::events::emit(
+                            "needs_attention",
+                            serde_json::json!({ "term": id, "reason": "hot", "proc": name, "cpu": cpu }),
+                        );
+                        // tambien al frontend: badge de atencion visible en el HOME
+                        let _ = app.emit(
+                            "engine://evt",
+                            crate::engine::EngineEvt {
+                                id,
+                                kind: "attention".into(),
+                                data: "hot".into(),
+                            },
+                        );
+                    },
+                );
             }
 
             let tick = SysTick {
@@ -253,7 +271,12 @@ mod tests {
 
     #[test]
     fn nombres_windows_reconocen_ejecutables_y_shims_npm() {
-        let args = |items: &[&str]| items.iter().map(std::ffi::OsString::from).collect::<Vec<_>>();
+        let args = |items: &[&str]| {
+            items
+                .iter()
+                .map(std::ffi::OsString::from)
+                .collect::<Vec<_>>()
+        };
         assert_eq!(
             resolve_process_name(
                 std::ffi::OsStr::new("node.exe"),
@@ -281,7 +304,10 @@ mod tests {
     }
 
     fn collect(track: &mut HotTrack, samples: &[(u32, f32, &str)], now: Instant) -> Vec<u32> {
-        let s: Vec<(u32, f32, String)> = samples.iter().map(|(i, c, n)| (*i, *c, n.to_string())).collect();
+        let s: Vec<(u32, f32, String)> = samples
+            .iter()
+            .map(|(i, c, n)| (*i, *c, n.to_string()))
+            .collect();
         let mut got = Vec::new();
         scan_hot(track, &s, now, &mut |id, _, _| got.push(id));
         got
@@ -303,7 +329,10 @@ mod tests {
         assert!(collect(&mut t, &[(1, 60.0, "node")], t2).is_empty());
         let t3 = t2 + Duration::from_secs(HOT_SUSTAIN_S + 1);
         collect(&mut t, &[(1, 95.0, "node")], t2);
-        assert!(collect(&mut t, &[(1, 95.0, "node")], t3).is_empty(), "tibio no re-arma");
+        assert!(
+            collect(&mut t, &[(1, 95.0, "node")], t3).is_empty(),
+            "tibio no re-arma"
+        );
         // se enfria de verdad (<40): re-arma, y un nuevo episodio vuelve a emitir
         collect(&mut t, &[(1, 10.0, "node")], t3);
         let t4 = t3 + Duration::from_secs(10);
@@ -321,7 +350,10 @@ mod tests {
         let t1 = t0 + Duration::from_secs(30);
         assert!(collect(&mut t, &[(2, 20.0, "cargo")], t1).is_empty());
         let t2 = t1 + Duration::from_secs(HOT_SUSTAIN_S * 2);
-        assert!(collect(&mut t, &[(2, 99.0, "cargo")], t2).is_empty(), "reloj reseteado");
+        assert!(
+            collect(&mut t, &[(2, 99.0, "cargo")], t2).is_empty(),
+            "reloj reseteado"
+        );
         // panel desaparece: su memoria se poda
         collect(&mut t, &[], t2);
         assert!(t.hot_since.is_empty() && t.flagged.is_empty());

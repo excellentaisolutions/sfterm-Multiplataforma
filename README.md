@@ -44,6 +44,7 @@ implementación, estado y criterios de aceptación vive en el
 | WIN-009 | Comandos para reanudar agentes y crear worktrees emitían sintaxis POSIX bajo PowerShell. | Generación por familia de shell, comillas literales seguras y propagación de stderr/exit code. | Tests de quoting PowerShell/POSIX verdes. |
 | CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
 | CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
+| CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | `cargo fmt --all -- --check` verde localmente. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -145,11 +146,23 @@ Diagnóstico sin instalar ni descargar dependencias:
 npm run env:check
 # salida consumible por automatización:
 node scripts/check-environment.mjs --json
+# toolchain, acceso a crates.io y estado de la caché Cargo:
+npm run cargo:doctor
+# prueba además cargo fetch --locked (puede descargar fuentes):
+npm run cargo:doctor:online
 # contratos nativos que no requieren compilar Rust:
 npm run test:shell:windows
 npm run test:process-tree:windows
 npm run test:ptyd-primitives:windows
 ```
+
+Si los endpoints de crates.io aparecen como accesibles pero el diagnóstico
+online devuelve `cargo_process_socket_blocked`, Windows está denegando sockets
+al proceso `cargo.exe` (por ejemplo, mediante firewall por aplicación,
+antivirus/EDR o un sandbox). Es un problema de la máquina o del entorno de
+ejecución, no de `Cargo.toml`: no se cambia `Cargo.lock` ni se introduce un
+mirror para esconderlo. Tras autorizar Cargo, repite `npm run
+cargo:doctor:online` y `npm run check:rust`.
 
 La compilación nativa Windows ya está habilitada en CI y usa el overlay Tauri
 específico de Windows. Consulta el estado y los bloqueos restantes en el

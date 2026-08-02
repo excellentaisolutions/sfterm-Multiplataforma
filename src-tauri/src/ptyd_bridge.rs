@@ -85,14 +85,19 @@ impl Write for DaemonWriter {
 }
 
 fn daemon_writer(term: u32) -> crate::pty::SharedWriter {
-    Arc::new(Mutex::new(Box::new(DaemonWriter { term }) as Box<dyn Write + Send>))
+    Arc::new(Mutex::new(
+        Box::new(DaemonWriter { term }) as Box<dyn Write + Send>
+    ))
 }
 
 /// ¿El config pide daemon? Default TRUE: la inmortalidad es el punto de todo
 /// esto. `[general] daemon = false` o SFTERM_NO_DAEMON=1 lo apagan (escape
 /// operativo si un dia el daemon da lata; se degrada al comportamiento clasico).
 fn wanted() -> bool {
-    if std::env::var("SFTERM_NO_DAEMON").map(|v| !v.trim().is_empty()).unwrap_or(false) {
+    if std::env::var("SFTERM_NO_DAEMON")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false)
+    {
         return false;
     }
     crate::config::config_get()
@@ -156,7 +161,9 @@ fn drain_loop() {
 /// (poll_exits): el frontend ya sabe cerrar la conversacion con ellas.
 fn on_exit(id: u32, code: Option<i32>) {
     bridge().sinks.lock().unwrap().remove(&id);
-    let Some(app) = bridge().app.get() else { return };
+    let Some(app) = bridge().app.get() else {
+        return;
+    };
     let state = app.state::<crate::pty::PtyState>();
     let mut sessions = state.sessions.lock().unwrap();
     if let Some(s) = sessions.get_mut(&id) {
@@ -174,7 +181,10 @@ fn on_exit(id: u32, code: Option<i32>) {
     );
     let _ = app.emit(
         "pty://exit",
-        crate::pty::PtyExit { id, code: code.map(|c| c as u32) },
+        crate::pty::PtyExit {
+            id,
+            code: code.map(|c| c as u32),
+        },
     );
 }
 
@@ -184,7 +194,9 @@ fn on_exit(id: u32, code: Option<i32>) {
 fn on_daemon_down() {
     *bridge().client.lock().unwrap() = None;
     let ids: Vec<u32> = {
-        let Some(app) = bridge().app.get() else { return };
+        let Some(app) = bridge().app.get() else {
+            return;
+        };
         let state = app.state::<crate::pty::PtyState>();
         let sessions = state.sessions.lock().unwrap();
         sessions
@@ -236,11 +248,13 @@ pub fn spawn(
     // encuentra a quien pintarlo (el ring del daemon cubre el hueco previo)
     crate::engine::create(engine_state, id, cols as usize, rows as usize, scrollback);
     let writer = daemon_writer(id);
-    bridge()
-        .sinks
-        .lock()
-        .unwrap()
-        .insert(id, Arc::new(Sink { chan: on_data, writer: writer.clone() }));
+    bridge().sinks.lock().unwrap().insert(
+        id,
+        Arc::new(Sink {
+            chan: on_data,
+            writer: writer.clone(),
+        }),
+    );
     let attach_err = match req(&Req::Attach { id }) {
         Ok(Res::Attached { .. }) => None,
         Ok(Res::Err { msg }) | Err(msg) => Some(msg),
@@ -287,13 +301,21 @@ pub fn adopt(
         .find(|t| t.id == id)
         .ok_or_else(|| format!("la terminal {id} ya no vive en el daemon"))?;
     crate::pty::ensure_next_id_above(id);
-    crate::engine::create(engine_state, id, info.cols as usize, info.rows as usize, scrollback);
+    crate::engine::create(
+        engine_state,
+        id,
+        info.cols as usize,
+        info.rows as usize,
+        scrollback,
+    );
     let writer = daemon_writer(id);
-    bridge()
-        .sinks
-        .lock()
-        .unwrap()
-        .insert(id, Arc::new(Sink { chan: on_data, writer: writer.clone() }));
+    bridge().sinks.lock().unwrap().insert(
+        id,
+        Arc::new(Sink {
+            chan: on_data,
+            writer: writer.clone(),
+        }),
+    );
     match req(&Req::Attach { id }) {
         Ok(Res::Attached { .. }) => Ok(AdoptInfo {
             id,
@@ -320,7 +342,12 @@ pub fn adopt(
 /// El writer registrado para una terminal adoptada/spawneada via daemon
 /// (pty_adopt lo necesita para armar su PtySession con el MISMO Arc del sink).
 pub fn writer_of(id: u32) -> Option<crate::pty::SharedWriter> {
-    bridge().sinks.lock().unwrap().get(&id).map(|s| s.writer.clone())
+    bridge()
+        .sinks
+        .lock()
+        .unwrap()
+        .get(&id)
+        .map(|s| s.writer.clone())
 }
 
 pub fn list() -> Result<Vec<TermInfo>, String> {
@@ -392,7 +419,10 @@ pub struct TermSummary {
 
 pub fn daemon_info() -> DaemonInfo {
     if !daemon_on() {
-        return DaemonInfo { on: false, terms: vec![] };
+        return DaemonInfo {
+            on: false,
+            terms: vec![],
+        };
     }
     let terms = list()
         .unwrap_or_default()

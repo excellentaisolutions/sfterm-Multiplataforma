@@ -22,7 +22,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run validate:frontend
+      # Keep each gate separate so a platform-specific failure is immediately
+      # attributable from the Actions job without downloading private logs.
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
 
   native-macos:
     name: Native (macOS)

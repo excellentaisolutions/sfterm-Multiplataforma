@@ -34,7 +34,11 @@ fn find_bin(name: &str) -> Option<String> {
         .output()
         .ok()?;
     let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if s.is_empty() { None } else { Some(s) }
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 fn models_dir() -> PathBuf {
@@ -108,10 +112,21 @@ pub fn voice_start(state: State<'_, VoiceState>) -> Result<(), String> {
     let spawn = |device: &str| -> Result<Child, String> {
         Command::new(&ffmpeg)
             .args([
-                "-hide_banner", "-loglevel", "error",
-                "-f", "avfoundation", "-i", device,
-                "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le",
-                "-y", &wav,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "avfoundation",
+                "-i",
+                device,
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-c:a",
+                "pcm_s16le",
+                "-y",
+                &wav,
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -178,23 +193,30 @@ fn stop_and_transcribe(mut child: Child, wav: &str) -> Result<String, String> {
     if size < 12_000 {
         return Err("no se grabo audio (muy corto o mic mudo)".into());
     }
-    let whisper =
-        find_bin("whisper-cli").ok_or("whisper-cli no esta instalado (brew install whisper-cpp)")?;
+    let whisper = find_bin("whisper-cli")
+        .ok_or("whisper-cli no esta instalado (brew install whisper-cpp)")?;
     let model = pick_model().ok_or(
         "falta el modelo de voz: corre scripts/setup-stt.sh (descarga whisper a ~/.config/sfterm/models)",
     )?;
     let out = Command::new(&whisper)
         .args([
-            "-m", &model.to_string_lossy(),
-            "-l", "es",
-            "-nt", "-np",
-            "-f", wav,
+            "-m",
+            &model.to_string_lossy(),
+            "-l",
+            "es",
+            "-nt",
+            "-np",
+            "-f",
+            wav,
         ])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        return Err(format!("whisper fallo: {}", err.chars().take(300).collect::<String>()));
+        return Err(format!(
+            "whisper fallo: {}",
+            err.chars().take(300).collect::<String>()
+        ));
     }
     let text = String::from_utf8_lossy(&out.stdout)
         .lines()

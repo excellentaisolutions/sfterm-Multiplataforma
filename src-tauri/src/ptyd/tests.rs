@@ -52,12 +52,18 @@ fn la_conversacion_sobrevive_a_que_el_cliente_se_vaya() {
         otro => panic!("spawn devolvio {otro:?}"),
     };
     app1.request(&Req::Attach { id }).expect("attach");
-    app1.wait_data(id, 4000, |s| s.contains('$') || s.contains('%') || s.contains('#'));
+    app1.wait_data(id, 4000, |s| {
+        s.contains('$') || s.contains('%') || s.contains('#')
+    });
 
     // un marcador irrepetible: si aparece en el replay, la pantalla se conservo
-    app1.write_str(id, "echo MARCA-DE-LA-CONVERSACION\n").unwrap();
+    app1.write_str(id, "echo MARCA-DE-LA-CONVERSACION\n")
+        .unwrap();
     let visto = app1.wait_data(id, 4000, |s| s.contains("MARCA-DE-LA-CONVERSACION"));
-    assert!(visto.contains("MARCA-DE-LA-CONVERSACION"), "la terminal no respondio: {visto:?}");
+    assert!(
+        visto.contains("MARCA-DE-LA-CONVERSACION"),
+        "la terminal no respondio: {visto:?}"
+    );
 
     // --- la app MUERE (rebuild) ---
     drop(app1);
@@ -118,7 +124,10 @@ fn fg_pgids_batcheado_y_drenado_de_frames() {
     // shell ya tomo el foreground; -1 es valido en la ventana de arranque)
     match app.request(&Req::FgPgids).unwrap() {
         Res::Pgids { list } => {
-            let e = list.iter().find(|e| e.id == id).expect("terminal en el batch");
+            let e = list
+                .iter()
+                .find(|e| e.id == id)
+                .expect("terminal en el batch");
             assert!(e.pid > 0, "pid del shell: {e:?}");
         }
         otro => panic!("FgPgids devolvio {otro:?}"),
@@ -137,7 +146,10 @@ fn fg_pgids_batcheado_y_drenado_de_frames() {
         }
         assert!(!batch.closed, "el daemon se cayo a media prueba");
     }
-    assert!(visto.contains("DRENADO-OK"), "wait_frames no trajo el output: {visto:?}");
+    assert!(
+        visto.contains("DRENADO-OK"),
+        "wait_frames no trajo el output: {visto:?}"
+    );
     let _ = app.request(&Req::Kill { id });
 }
 
@@ -165,7 +177,9 @@ fn kill_mata_el_arbol_completo() {
         otro => panic!("{otro:?}"),
     };
     app.request(&Req::Attach { id }).unwrap();
-    app.wait_data(id, 4000, |s| s.contains('%') || s.contains('$') || s.contains('#'));
+    app.wait_data(id, 4000, |s| {
+        s.contains('%') || s.contains('$') || s.contains('#')
+    });
     app.write_str(id, "sleep 300\n").unwrap();
     // el nieto: el sleep hijo del shell (via pgrep, contra procesos REALES)
     let mut nieto: Option<i32> = None;
@@ -195,7 +209,10 @@ fn kill_mata_el_arbol_completo() {
             break;
         }
     }
-    assert!(murio, "el nieto (sleep {nieto}) sobrevivio al Kill: fantasma");
+    assert!(
+        murio,
+        "el nieto (sleep {nieto}) sobrevivio al Kill: fantasma"
+    );
 }
 
 /// El unico gesto que SI mata: pedirlo. Ninguna desconexion debe hacerlo.

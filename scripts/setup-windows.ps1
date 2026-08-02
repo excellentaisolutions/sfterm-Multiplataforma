@@ -89,7 +89,10 @@ if (-not $SkipDependencies) {
     & node scripts/run-with-project-target.mjs cargo fetch `
         --manifest-path src-tauri/Cargo.toml --locked
     if ($LASTEXITCODE -ne 0) {
-        throw "cargo fetch --locked falló."
+        Write-Host ""
+        Write-Host "Diagnóstico detallado de Cargo:"
+        & node scripts/check-cargo.mjs --online
+        throw "cargo fetch --locked falló. Revisa el diagnóstico anterior; no modifiques Cargo.lock ni configures mirrors para ocultar un bloqueo local."
     }
 }
 

@@ -36,7 +36,9 @@ pub fn fs_list_dir(path: String) -> Result<Vec<DirEntry>, String> {
         let ft = entry.file_type();
         let is_symlink = ft.as_ref().map(|t| t.is_symlink()).unwrap_or(false);
         let is_dir = if is_symlink {
-            std::fs::metadata(entry.path()).map(|m| m.is_dir()).unwrap_or(false)
+            std::fs::metadata(entry.path())
+                .map(|m| m.is_dir())
+                .unwrap_or(false)
         } else {
             meta.map(|m| m.is_dir()).unwrap_or(false)
         };
@@ -89,7 +91,10 @@ pub fn fs_read_file(path: String, max_bytes: Option<u64>) -> Result<FileContent,
 
 #[tauri::command]
 pub fn fs_home_dir() -> String {
-    dirs::home_dir().unwrap_or_default().to_string_lossy().to_string()
+    dirs::home_dir()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
 }
 
 /// Destino temporal multiplataforma para defaults del gate/browser. Solo
@@ -106,7 +111,10 @@ pub fn fs_temp_path(name: String) -> Result<String, String> {
     {
         return Err("nombre temporal inválido".into());
     }
-    Ok(std::env::temp_dir().join(name).to_string_lossy().to_string())
+    Ok(std::env::temp_dir()
+        .join(name)
+        .to_string_lossy()
+        .to_string())
 }
 
 #[tauri::command]
@@ -223,7 +231,13 @@ if ([System.IO.Directory]::Exists($p)) {
 }
 "#;
     let output = std::process::Command::new("powershell.exe")
-        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", SCRIPT])
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            SCRIPT,
+        ])
         .env("SFTERM_TRASH_PATH", path)
         .output()
         .map_err(|error| error.to_string())?;
@@ -358,7 +372,11 @@ pub struct SearchHit {
 /// Respeta .gitignore, salta binarios (byte 0 en el primer chunk) y archivos
 /// >2MB, case-insensitive, cap de resultados. Logica pura en `search_dir`.
 #[tauri::command]
-pub async fn fs_search(root: String, q: String, max: Option<usize>) -> Result<Vec<SearchHit>, String> {
+pub async fn fs_search(
+    root: String,
+    q: String,
+    max: Option<usize>,
+) -> Result<Vec<SearchHit>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let root = crate::pty::expand_tilde(&root);
         Ok(search_dir(&root, &q, max.unwrap_or(200).min(500)))
@@ -387,10 +405,16 @@ pub fn search_dir(root: &str, q: &str, max: usize) -> Vec<SearchHit> {
         if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
             continue;
         }
-        if entry.metadata().map(|m| m.len() > 2_000_000).unwrap_or(true) {
+        if entry
+            .metadata()
+            .map(|m| m.len() > 2_000_000)
+            .unwrap_or(true)
+        {
             continue;
         }
-        let Ok(bytes) = std::fs::read(entry.path()) else { continue };
+        let Ok(bytes) = std::fs::read(entry.path()) else {
+            continue;
+        };
         if bytes.iter().take(1024).any(|b| *b == 0) {
             continue; // binario
         }
@@ -423,7 +447,10 @@ mod tests {
     #[test]
     fn temp_path_no_acepta_rutas() {
         let path = fs_temp_path("sfterm-snap.png".into()).unwrap();
-        assert_eq!(std::path::Path::new(&path).file_name().unwrap(), "sfterm-snap.png");
+        assert_eq!(
+            std::path::Path::new(&path).file_name().unwrap(),
+            "sfterm-snap.png"
+        );
         assert!(fs_temp_path("../escape.png".into()).is_err());
         assert!(fs_temp_path("C:\\escape.png".into()).is_err());
     }
@@ -457,7 +484,13 @@ mod tests {
         std::fs::write(dir.join("src/core/term.ts"), "x").unwrap();
         std::fs::write(dir.join("Cargo.toml"), "x").unwrap();
         let cwd = dir.to_string_lossy().to_string();
-        let canon = |p: &str| dir.join(p).canonicalize().unwrap().to_string_lossy().to_string();
+        let canon = |p: &str| {
+            dir.join(p)
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+                .to_string()
+        };
 
         // relativa simple contra el cwd
         let r = resolve_token("src/core/term.ts", &cwd).expect("relativa resuelve");
@@ -512,7 +545,10 @@ mod tests {
         let s = |p: &std::path::Path| p.to_string_lossy().to_string();
 
         assert!(trash_guard(&s(&dir.join("root/sub/a.txt")), &root_canon).is_ok());
-        assert!(trash_guard(&s(&dir.join("root/sub")), &root_canon).is_ok(), "carpetas tambien");
+        assert!(
+            trash_guard(&s(&dir.join("root/sub")), &root_canon).is_ok(),
+            "carpetas tambien"
+        );
         assert_eq!(
             trash_guard(&s(&dir.join("root")), &root_canon),
             Err("es la raiz del arbol".into()),
@@ -550,18 +586,29 @@ mod tests {
             vec![
                 dir.join("suelto.txt").to_string_lossy().to_string(),
                 dir.join("carpeta").to_string_lossy().to_string(),
-                root.clone(),                                    // la raiz: rechazada
-                "/etc/hosts".into(),                             // afuera: rechazado
+                root.clone(),        // la raiz: rechazada
+                "/etc/hosts".into(), // afuera: rechazado
             ],
             root.clone(),
         );
 
-        assert_eq!(res.trashed.len(), 2, "archivo y carpeta se fueron: {:?}", res.errors);
+        assert_eq!(
+            res.trashed.len(),
+            2,
+            "archivo y carpeta se fueron: {:?}",
+            res.errors
+        );
         assert_eq!(res.errors.len(), 2, "raiz y afuera rechazados");
         assert!(!dir.join("suelto.txt").exists());
-        assert!(!dir.join("carpeta").exists(), "la carpeta se va con todo adentro");
+        assert!(
+            !dir.join("carpeta").exists(),
+            "la carpeta se va con todo adentro"
+        );
         assert!(dir.exists(), "el root sigue de pie");
-        assert!(std::path::Path::new("/etc/hosts").exists(), "nada fuera del root se toco");
+        assert!(
+            std::path::Path::new("/etc/hosts").exists(),
+            "nada fuera del root se toco"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
@@ -579,21 +626,22 @@ pub fn fs_watch_root(app: AppHandle, root: String) -> Result<(), String> {
         std::sync::Arc::new(Mutex::new(Instant::now()));
 
     let pending2 = pending.clone();
-    let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
-        if let Ok(event) = res {
-            let mut p = pending2.lock().unwrap();
-            for path in &event.paths {
-                let s = path.to_string_lossy().to_string();
-                if s.contains("/.git/") {
-                    continue; // el espejo git se refresca aparte con debounce propio
-                }
-                if !p.contains(&s) {
-                    p.push(s);
+    let mut watcher =
+        notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                let mut p = pending2.lock().unwrap();
+                for path in &event.paths {
+                    let s = path.to_string_lossy().to_string();
+                    if s.contains("/.git/") {
+                        continue; // el espejo git se refresca aparte con debounce propio
+                    }
+                    if !p.contains(&s) {
+                        p.push(s);
+                    }
                 }
             }
-        }
-    })
-    .map_err(|e| e.to_string())?;
+        })
+        .map_err(|e| e.to_string())?;
 
     watcher
         .watch(Path::new(&root), RecursiveMode::Recursive)

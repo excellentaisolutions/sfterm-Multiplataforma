@@ -30,7 +30,11 @@ pub struct Attrs {
 
 impl Default for Attrs {
     fn default() -> Self {
-        Attrs { fg: Color::Default, bg: Color::Default, flags: 0 }
+        Attrs {
+            fg: Color::Default,
+            bg: Color::Default,
+            flags: 0,
+        }
     }
 }
 
@@ -42,7 +46,10 @@ pub struct Cell {
 
 impl Default for Cell {
     fn default() -> Self {
-        Cell { ch: ' ', attrs: Attrs::default() }
+        Cell {
+            ch: ' ',
+            attrs: Attrs::default(),
+        }
     }
 }
 
@@ -56,7 +63,10 @@ pub struct Row {
 
 impl Row {
     pub fn blank(cols: usize, template: Cell) -> Self {
-        Row { cells: vec![template; cols], wrapped: false }
+        Row {
+            cells: vec![template; cols],
+            wrapped: false,
+        }
     }
 
     pub fn text(&self) -> String {
@@ -141,11 +151,19 @@ impl Grid {
     }
 
     pub fn screen(&self) -> &Screen {
-        if self.alt_active { &self.alt } else { &self.primary }
+        if self.alt_active {
+            &self.alt
+        } else {
+            &self.primary
+        }
     }
 
     pub fn screen_mut(&mut self) -> &mut Screen {
-        if self.alt_active { &mut self.alt } else { &mut self.primary }
+        if self.alt_active {
+            &mut self.alt
+        } else {
+            &mut self.primary
+        }
     }
 
     pub fn cursor(&self) -> Cursor {
@@ -226,8 +244,7 @@ impl Grid {
                 //                 arriba, asi que el contenido de ARRIBA no crecio
                 //                 y el offset debe quedarse (si no, treparia solo).
                 if self.viewport_offset > 0 && !evicted {
-                    self.viewport_offset =
-                        (self.viewport_offset + 1).min(self.scrollback.len());
+                    self.viewport_offset = (self.viewport_offset + 1).min(self.scrollback.len());
                 }
             }
             let cols = self.cols;
@@ -297,8 +314,9 @@ impl Grid {
             // al crecer, se jalan de vuelta.
             if !screen_is_alt {
                 if self.rows < old_rows {
-                    let excess =
-                        (self.primary.cursor.y + 1).max(self.content_rows()).min(old_rows);
+                    let excess = (self.primary.cursor.y + 1)
+                        .max(self.content_rows())
+                        .min(old_rows);
                     let mut to_remove = old_rows - self.rows;
                     // primero recorta filas vacias del fondo
                     while to_remove > 0 && self.primary.lines.len() > excess {
@@ -330,8 +348,14 @@ impl Grid {
                     }
                 }
             }
-            let screen = if screen_is_alt { &mut self.alt } else { &mut self.primary };
-            screen.lines.resize(self.rows, Row::blank(self.cols, template));
+            let screen = if screen_is_alt {
+                &mut self.alt
+            } else {
+                &mut self.primary
+            };
+            screen
+                .lines
+                .resize(self.rows, Row::blank(self.cols, template));
             for row in screen.lines.iter_mut() {
                 row.cells.resize(self.cols, template);
             }

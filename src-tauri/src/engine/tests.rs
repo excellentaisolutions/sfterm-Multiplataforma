@@ -63,7 +63,11 @@ fn sgr_colores_y_estilos() {
     assert_eq!(cy.attrs.fg, Color::Default);
     assert_eq!(cy.attrs.flags, 0);
     // 256 y truecolor, semicolon y colon
-    feed(&mut t, &mut p, "\x1b[38;5;196mA\x1b[38;2;10;20;30mB\x1b[38:2:0:1:2:3mC");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b[38;5;196mA\x1b[38;2;10;20;30mB\x1b[38:2:0:1:2:3mC",
+    );
     assert_eq!(cell(&t, 2, 0).attrs.fg, Color::Indexed(196));
     assert_eq!(cell(&t, 3, 0).attrs.fg, Color::Rgb(10, 20, 30));
     assert_eq!(cell(&t, 4, 0).attrs.fg, Color::Rgb(1, 2, 3));
@@ -157,7 +161,11 @@ fn osc_titulo_y_cwd() {
     let (mut t, mut p) = mk(20, 3);
     feed(&mut t, &mut p, "\x1b]0;✳ Mi resumen; con punto y coma\x07");
     assert_eq!(t.title, "✳ Mi resumen; con punto y coma");
-    feed(&mut t, &mut p, "\x1b]7;file://mac.local/Users/daniel/Dev%20Site\x07");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]7;file://mac.local/Users/daniel/Dev%20Site\x07",
+    );
     assert_eq!(t.cwd, "/Users/daniel/Dev Site");
     assert!(!t.events.is_empty());
 }
@@ -165,11 +173,16 @@ fn osc_titulo_y_cwd() {
 #[test]
 fn osc_cwd_normaliza_uri_de_windows() {
     let (mut t, mut p) = mk(80, 24);
-    feed(&mut t, &mut p, "\x1b]7;file:///C:/Users/Iris/My%20Project\x07");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]7;file:///C:/Users/Iris/My%20Project\x07",
+    );
     assert_eq!(t.cwd, "C:/Users/Iris/My Project");
-    assert!(t.events.iter().any(
-        |event| matches!(event, TermEvent::Cwd(path) if path == "C:/Users/Iris/My Project")
-    ));
+    assert!(t
+        .events
+        .iter()
+        .any(|event| matches!(event, TermEvent::Cwd(path) if path == "C:/Users/Iris/My Project")));
 }
 
 #[test]
@@ -189,7 +202,11 @@ fn bloques_osc_133_ciclo_completo() {
     let (mut t, mut p) = mk(40, 10);
     // prompt → comando → output → fin con exit code
     feed(&mut t, &mut p, "\x1b]133;A\x07$ ");
-    feed(&mut t, &mut p, "\x1b]633;E;cargo test --all\x07\x1b]133;C\x07\r\n");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]633;E;cargo test --all\x07\x1b]133;C\x07\r\n",
+    );
     feed(&mut t, &mut p, "corriendo...\r\nok\r\n");
     feed(&mut t, &mut p, "\x1b]133;D;0\x07\x1b]133;A\x07$ ");
     let b = t.blocks.last().unwrap();
@@ -199,8 +216,12 @@ fn bloques_osc_133_ciclo_completo() {
     assert!(b.duration_ms.is_some());
     assert_eq!(b.start_abs, 0);
     assert_eq!(b.output_abs, 0); // C llego antes del \r\n
-    // segundo bloque que falla
-    feed(&mut t, &mut p, "\x1b]633;E;false\x07\x1b]133;C\x07\r\n\x1b]133;D;1\x07\x1b]133;A\x07$ ");
+                                 // segundo bloque que falla
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]633;E;false\x07\x1b]133;C\x07\r\n\x1b]133;D;1\x07\x1b]133;A\x07$ ",
+    );
     assert_eq!(t.blocks.list.len(), 2);
     assert_eq!(t.blocks.last().unwrap().exit, Some(1));
 }
@@ -223,7 +244,11 @@ fn dsr_y_da_responden() {
 #[test]
 fn modos_decset() {
     let (mut t, mut p) = mk(20, 5);
-    feed(&mut t, &mut p, "\x1b[?1h\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[?25l");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b[?1h\x1b[?2004h\x1b[?1002h\x1b[?1006h\x1b[?25l",
+    );
     assert!(t.modes.app_cursor);
     assert!(t.modes.bracketed_paste);
     assert_eq!(t.modes.mouse, MouseMode::Drag);
@@ -290,7 +315,11 @@ fn ind_ri_nel() {
 #[test]
 fn cursor_save_restore() {
     let (mut t, mut p) = mk(20, 5);
-    feed(&mut t, &mut p, "\x1b[3;5H\x1b[31m\x1b7\x1b[1;1H\x1b[0mX\x1b8Y");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b[3;5H\x1b[31m\x1b7\x1b[1;1H\x1b[0mX\x1b8Y",
+    );
     assert_eq!(cell(&t, 4, 2).ch, 'Y');
     assert_eq!(cell(&t, 4, 2).attrs.fg, Color::Indexed(1));
 }
@@ -350,8 +379,16 @@ fn frame_binario_coherente() {
 fn block_text_junta_soft_wraps() {
     // linea logica larga que envuelve: block_text la devuelve como UNA linea
     let (mut t, mut p) = mk(10, 5);
-    feed(&mut t, &mut p, "\x1b]133;A\x07$ \x1b]633;E;cat x.md\x07\r\n\x1b]133;C\x07");
-    feed(&mut t, &mut p, "una linea muy larga\r\ncorta\r\n\x1b]133;D;0\x07");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]133;A\x07$ \x1b]633;E;cat x.md\x07\r\n\x1b]133;C\x07",
+    );
+    feed(
+        &mut t,
+        &mut p,
+        "una linea muy larga\r\ncorta\r\n\x1b]133;D;0\x07",
+    );
     let bt = super::block_text_of(&t, None, None).unwrap();
     assert_eq!(bt.cmd, "cat x.md");
     assert_eq!(bt.exit, Some(0));
@@ -362,7 +399,11 @@ fn block_text_junta_soft_wraps() {
 fn frame_block_lleva_readable() {
     let (mut t, mut p) = mk(20, 8);
     // bloque con 1 linea de output: NO readable
-    feed(&mut t, &mut p, "\x1b]133;A\x07$ \x1b]633;E;pwd\x07\r\n\x1b]133;C\x07out\r\n\x1b]133;D;0\x07");
+    feed(
+        &mut t,
+        &mut p,
+        "\x1b]133;A\x07$ \x1b]633;E;pwd\x07\r\n\x1b]133;C\x07out\r\n\x1b]133;D;0\x07",
+    );
     let buf = super::frame::build(&mut t, 1);
     // header fijo = 32 bytes; luego u16 block_count
     let n = u16::from_le_bytes(buf[32..34].try_into().unwrap());
@@ -371,7 +412,11 @@ fn frame_block_lleva_readable() {
     assert_eq!(buf[36], 0, "running");
     assert_eq!(buf[37], 1, "has_cmd");
     assert_eq!(buf[38], 0, "1 linea de output no es readable");
-    assert_eq!(i32::from_le_bytes(buf[39..43].try_into().unwrap()), 0, "exit");
+    assert_eq!(
+        i32::from_le_bytes(buf[39..43].try_into().unwrap()),
+        0,
+        "exit"
+    );
     // segundo bloque con 3+ lineas: SI readable
     feed(&mut t, &mut p, "\x1b]133;A\x07$ \x1b]633;E;cat doc.md\x07\r\n\x1b]133;C\x07uno\r\ndos\r\ntres\r\n\x1b]133;D;0\x07");
     let buf = super::frame::build(&mut t, 2);
@@ -484,7 +529,10 @@ fn viewport_en_el_fondo_sigue_la_salida() {
     for i in 10..16 {
         feed(&mut t, &mut p, &format!("linea{i}\r\n"));
     }
-    assert_eq!(t.grid.viewport_offset, 0, "el fondo vivo debe seguir la salida");
+    assert_eq!(
+        t.grid.viewport_offset, 0,
+        "el fondo vivo debe seguir la salida"
+    );
 }
 
 #[test]

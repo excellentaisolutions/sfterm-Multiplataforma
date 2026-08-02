@@ -64,7 +64,11 @@ fn capture(repo: &Repository, label: &str) -> Result<(git2::Oid, usize), String>
         ["*"].iter(),
         git2::IndexAddOption::DEFAULT,
         Some(&mut |path: &std::path::Path, _spec: &[u8]| {
-            if path.to_string_lossy().ends_with('/') { 1 } else { 0 }
+            if path.to_string_lossy().ends_with('/') {
+                1
+            } else {
+                0
+            }
         }),
     )
     .map_err(|e| e.to_string())?;
@@ -81,10 +85,14 @@ fn capture(repo: &Repository, label: &str) -> Result<(git2::Oid, usize), String>
         None => tree.len(),
     };
 
-    let sig = git2::Signature::now("sfterm", "checkpoint@sfterm.local")
-        .map_err(|e| e.to_string())?;
+    let sig =
+        git2::Signature::now("sfterm", "checkpoint@sfterm.local").map_err(|e| e.to_string())?;
     let parents: Vec<&git2::Commit> = head.iter().collect();
-    let msg = if label.trim().is_empty() { "checkpoint" } else { label.trim() };
+    let msg = if label.trim().is_empty() {
+        "checkpoint"
+    } else {
+        label.trim()
+    };
     let oid = repo
         .commit(None, &sig, &sig, msg, &tree, &parents)
         .map_err(|e| e.to_string())?;
@@ -110,9 +118,13 @@ fn refs_sorted(repo: &Repository) -> Vec<(String, git2::Oid, i64)> {
         return out;
     };
     for r in refs.flatten() {
-        let Ok(name) = r.name().map(|s| s.to_string()) else { continue };
+        let Ok(name) = r.name().map(|s| s.to_string()) else {
+            continue;
+        };
         let Some(oid) = r.target() else { continue };
-        let Ok(c) = repo.find_commit(oid) else { continue };
+        let Ok(c) = repo.find_commit(oid) else {
+            continue;
+        };
         out.push((name, oid, c.time().seconds()));
     }
     out.sort_by(|a, b| b.2.cmp(&a.2).then(b.0.cmp(&a.0)));
@@ -136,7 +148,10 @@ fn find_by_id(repo: &Repository, id: &str) -> Result<git2::Oid, String> {
 }
 
 #[tauri::command]
-pub async fn checkpoint_save(root: String, label: Option<String>) -> Result<CheckpointInfo, String> {
+pub async fn checkpoint_save(
+    root: String,
+    label: Option<String>,
+) -> Result<CheckpointInfo, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let repo = open(&root)?;
         let label = label.unwrap_or_default();
@@ -154,7 +169,10 @@ pub async fn checkpoint_save(root: String, label: Option<String>) -> Result<Chec
 }
 
 #[tauri::command]
-pub async fn checkpoint_list(root: String, limit: Option<usize>) -> Result<Vec<CheckpointInfo>, String> {
+pub async fn checkpoint_list(
+    root: String,
+    limit: Option<usize>,
+) -> Result<Vec<CheckpointInfo>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let repo = open(&root)?;
         let n = limit.unwrap_or(20).clamp(1, KEEP);
@@ -351,9 +369,18 @@ mod tests {
         let root = dir.to_string_lossy().to_string();
         tauri::async_runtime::block_on(checkpoint_restore(root, short(foto))).unwrap();
 
-        assert_eq!(std::fs::read_to_string(dir.join("a.txt")).unwrap(), "version-foto");
-        assert_eq!(std::fs::read_to_string(dir.join("extra.txt")).unwrap(), "existia");
-        assert!(!dir.join("post.txt").exists(), "untracked post-foto se retira");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("a.txt")).unwrap(),
+            "version-foto"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join("extra.txt")).unwrap(),
+            "existia"
+        );
+        assert!(
+            !dir.join("post.txt").exists(),
+            "untracked post-foto se retira"
+        );
         // el restore dejo un pre-restore para deshacer (foto + pre-restore)
         let labels: Vec<String> = refs_sorted(&repo)
             .iter()

@@ -22,8 +22,8 @@ use objc2::rc::Retained;
 use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{define_class, msg_send, DefinedClass, MainThreadOnly};
 use objc2_foundation::{
-    MainThreadMarker, NSArray, NSData, NSError, NSObject, NSObjectProtocol, NSString,
-    NSURLRequest, NSURLResponse, NSURL,
+    MainThreadMarker, NSArray, NSData, NSError, NSObject, NSObjectProtocol, NSString, NSURLRequest,
+    NSURLResponse, NSURL,
 };
 use objc2_web_kit::{
     WKDownload, WKDownloadDelegate, WKFrameInfo, WKNavigationAction, WKNavigationActionPolicy,
@@ -101,7 +101,13 @@ pub struct DownloadEntry {
     pub error: Option<String>,
 }
 
-fn push_dialog(view: u32, kind: &'static str, message: String, default_text: String, completion: Completion) {
+fn push_dialog(
+    view: u32,
+    kind: &'static str,
+    message: String,
+    default_text: String,
+    completion: Completion,
+) {
     DIALOGS.with(|d| {
         d.borrow_mut().push(PendingDialog {
             id: next_id(),
@@ -152,7 +158,9 @@ fn register_download(delegate: &SfBrowserDelegate, download: &WKDownload) -> u64
         download.setDelegate(Some(proto));
     }
     // retener el WKDownload para poder matchear sus callbacks por puntero
-    if let Some(kept) = unsafe { Retained::retain(download as *const WKDownload as *mut WKDownload) } {
+    if let Some(kept) =
+        unsafe { Retained::retain(download as *const WKDownload as *mut WKDownload) }
+    {
         DL_OBJS.with(|o| o.borrow_mut().push((id, kept)));
     }
     DOWNLOADS.with(|d| {
@@ -272,7 +280,9 @@ define_class!(
             handler: &block2::DynBlock<dyn Fn(*mut NSArray<NSURL>)>,
         ) {
             let view = self.ivars().view;
-            let rutas = PENDING_FILES.with(|m| m.borrow_mut().remove(&view)).unwrap_or_default();
+            let rutas = PENDING_FILES
+                .with(|m| m.borrow_mut().remove(&view))
+                .unwrap_or_default();
             if rutas.is_empty() {
                 handler.call((std::ptr::null_mut(),));
                 return;
@@ -376,8 +386,8 @@ define_class!(
             let dest = match explicit {
                 Some(p) => std::path::PathBuf::from(p),
                 None => {
-                    let dir = dirs::download_dir()
-                        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"));
+                    let dir =
+                        dirs::download_dir().unwrap_or_else(|| std::path::PathBuf::from("/tmp"));
                     unique_dest(&dir, &suggested.to_string())
                 }
             };
@@ -480,7 +490,8 @@ where
     F: FnOnce(mpsc::Sender<Result<T, String>>) + Send + 'static,
 {
     let (tx, rx) = mpsc::channel();
-    app.run_on_main_thread(move || f(tx)).map_err(|e| e.to_string())?;
+    app.run_on_main_thread(move || f(tx))
+        .map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
         rx.recv_timeout(Duration::from_secs(secs))
             .map_err(|_| "timeout esperando al main thread".to_string())?

@@ -183,7 +183,7 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
     loop {
         let frame = match read_frame(&mut rsock) {
             Ok(Some(f)) => f,
-            Ok(None) => break,               // se fue: NO se mata nada
+            Ok(None) => break, // se fue: NO se mata nada
             Err(e) => {
                 log(&format!("cliente {id} rompio el stream: {e}"));
                 break;
@@ -206,13 +206,21 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
                 Req::Hello { proto, client: who } => {
                     saludado = true;
                     let terms = hub.terms.lock().unwrap().len();
-                    log(&format!("hello de {who} (proto {proto}), {terms} terminales vivas"));
+                    log(&format!(
+                        "hello de {who} (proto {proto}), {terms} terminales vivas"
+                    ));
                     let res = if *proto == PROTO {
-                        Res::Hello { proto: PROTO, pid: std::process::id(), terms }
+                        Res::Hello {
+                            proto: PROTO,
+                            pid: std::process::id(),
+                            terms,
+                        }
                     } else {
                         // el desfase es ESPERADO (app nueva, daemon viejo): se
                         // reporta y decide la app, aqui no se mata nada
-                        Res::Err { msg: format!("proto {proto} != {PROTO}") }
+                        Res::Err {
+                            msg: format!("proto {proto} != {PROTO}"),
+                        }
                     };
                     client.queue(ctl_frame(frame.id, &res));
                     continue;
@@ -220,7 +228,9 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
                 _ => {
                     client.queue(ctl_frame(
                         frame.id,
-                        &Res::Err { msg: "falta hello".into() },
+                        &Res::Err {
+                            msg: "falta hello".into(),
+                        },
                     ));
                     continue;
                 }
@@ -234,7 +244,9 @@ fn serve_client(hub: Arc<Hub>, stream: Stream) {
     }
 
     hub.clients.lock().unwrap().retain(|c| c.id != id);
-    log(&format!("cliente {id} desconectado (las terminales siguen vivas)"));
+    log(&format!(
+        "cliente {id} desconectado (las terminales siguen vivas)"
+    ));
 }
 
 fn ctl_frame<T: serde::Serialize>(req_id: u32, msg: &T) -> Vec<u8> {
@@ -281,23 +293,36 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
                 .collect();
             Res::List { terms }
         }
-        Req::Spawn { cwd, cols, rows, scrollback: _, shell_integration, colorfgbg, command } => {
-            match spawn_term(hub, cwd, cols, rows, shell_integration, colorfgbg, command) {
-                Ok((id, pid)) => Res::Spawned { id, pid },
-                Err(e) => Res::Err { msg: e },
-            }
-        }
+        Req::Spawn {
+            cwd,
+            cols,
+            rows,
+            scrollback: _,
+            shell_integration,
+            colorfgbg,
+            command,
+        } => match spawn_term(hub, cwd, cols, rows, shell_integration, colorfgbg, command) {
+            Ok((id, pid)) => Res::Spawned { id, pid },
+            Err(e) => Res::Err { msg: e },
+        },
         Req::Attach { id } => {
             let term = hub.terms.lock().unwrap().get(&id).cloned();
             let Some(term) = term else {
-                return Res::Err { msg: format!("no existe la terminal {id}") };
+                return Res::Err {
+                    msg: format!("no existe la terminal {id}"),
+                };
             };
             client.attached.lock().unwrap().insert(id);
             let ring: Vec<u8> = term.ring.lock().unwrap().iter().copied().collect();
             let (cols, rows) = *term.size.lock().unwrap();
             // el replay va DESPUES de la respuesta para que el cliente sepa
             // cuantos bytes esperar antes de empezar a pintar
-            let res = Res::Attached { id, bytes: ring.len(), cols, rows };
+            let res = Res::Attached {
+                id,
+                bytes: ring.len(),
+                cols,
+                rows,
+            };
             let mut frame = Vec::with_capacity(ring.len() + 9);
             frame.push(KIND_DATA);
             frame.extend_from_slice(&id.to_le_bytes());
@@ -317,7 +342,9 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
         Req::Resize { id, cols, rows } => {
             let term = hub.terms.lock().unwrap().get(&id).cloned();
             let Some(term) = term else {
-                return Res::Err { msg: format!("no existe la terminal {id}") };
+                return Res::Err {
+                    msg: format!("no existe la terminal {id}"),
+                };
             };
             *term.size.lock().unwrap() = (cols, rows);
             let r = term.master.lock().unwrap().resize(PtySize {
@@ -335,7 +362,9 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
             let term = hub.terms.lock().unwrap().remove(&id);
             if let Some(t) = term {
                 kill_term_tree(&t);
-                log(&format!("terminal {id} matada por peticion (arbol completo)"));
+                log(&format!(
+                    "terminal {id} matada por peticion (arbol completo)"
+                ));
             }
             Res::Ok
         }
@@ -346,7 +375,9 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
                     let pgid = foreground_process(&term);
                     Res::Pgid { id, pgid }
                 }
-                None => Res::Err { msg: format!("no existe la terminal {id}") },
+                None => Res::Err {
+                    msg: format!("no existe la terminal {id}"),
+                },
             }
         }
         Req::FgPgids => {
@@ -398,23 +429,26 @@ fn handle(hub: &Arc<Hub>, client: &Arc<Client>, req: Req) -> Res {
 fn kill_term_tree(t: &Term) {
     #[cfg(target_os = "macos")]
     {
-    let fg = t.raw_fd.map(|fd| unsafe { libc::tcgetpgrp(fd) }).unwrap_or(-1);
-    if fg > 0 {
-        unsafe { libc::killpg(fg, libc::SIGHUP) };
-    }
-    if t.pid > 0 && (t.pid as i32) != fg {
-        unsafe { libc::killpg(t.pid as i32, libc::SIGHUP) };
-    }
-    let _ = t.child.lock().unwrap().kill();
-    if fg > 0 {
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(1500));
-            // killpg(pg, 0) = ¿el grupo sigue existiendo? Solo entonces el 9.
-            if unsafe { libc::killpg(fg, 0) } == 0 {
-                unsafe { libc::killpg(fg, libc::SIGKILL) };
-            }
-        });
-    }
+        let fg = t
+            .raw_fd
+            .map(|fd| unsafe { libc::tcgetpgrp(fd) })
+            .unwrap_or(-1);
+        if fg > 0 {
+            unsafe { libc::killpg(fg, libc::SIGHUP) };
+        }
+        if t.pid > 0 && (t.pid as i32) != fg {
+            unsafe { libc::killpg(t.pid as i32, libc::SIGHUP) };
+        }
+        let _ = t.child.lock().unwrap().kill();
+        if fg > 0 {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(1500));
+                // killpg(pg, 0) = ¿el grupo sigue existiendo? Solo entonces el 9.
+                if unsafe { libc::killpg(fg, 0) } == 0 {
+                    unsafe { libc::killpg(fg, libc::SIGKILL) };
+                }
+            });
+        }
     }
     #[cfg(target_os = "windows")]
     {
@@ -451,7 +485,12 @@ fn spawn_term(
 ) -> Result<(u32, u32), String> {
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| e.to_string())?;
 
     // MISMA construccion que la app: un solo lugar donde vive el scrub de
@@ -467,7 +506,9 @@ fn spawn_term(
         Err(error) => {
             let mut child = child;
             let _ = child.kill();
-            return Err(format!("no pude aislar el árbol ConPTY en un Job Object: {error}"));
+            return Err(format!(
+                "no pude aislar el árbol ConPTY en un Job Object: {error}"
+            ));
         }
     };
     drop(pair.slave);
@@ -518,10 +559,23 @@ fn spawn_term(
             }
         }
         // el shell murio solo: eso SI cierra la terminal
-        let code = term_r.child.lock().unwrap().try_wait().ok().flatten().map(|s| s.exit_code() as i32);
+        let code = term_r
+            .child
+            .lock()
+            .unwrap()
+            .try_wait()
+            .ok()
+            .flatten()
+            .map(|s| s.exit_code() as i32);
         hub_r.terms.lock().unwrap().remove(&term_r.id);
-        hub_r.evt(&Evt::Exit { id: term_r.id, code });
-        log(&format!("terminal {} termino sola (code {:?})", term_r.id, code));
+        hub_r.evt(&Evt::Exit {
+            id: term_r.id,
+            code,
+        });
+        log(&format!(
+            "terminal {} termino sola (code {:?})",
+            term_r.id, code
+        ));
     });
 
     // comando inicial (presets / ⌘⌥J). Sin engine aqui, asi que no se puede
