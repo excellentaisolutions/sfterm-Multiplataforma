@@ -112,7 +112,7 @@ Contratos iniciales:
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
-| 2. Terminal Windows | En curso | Matriz ConPTY PowerShell 5.1/7, OSC, DSR, resize y Unicode validada; agentes/TUI/IME pendientes |
+| 2. Terminal Windows | En curso | Matriz ConPTY PowerShell 5.1/7 con OSC, DSR, resize, Unicode, Ctrl+C y Ctrl+Break validada; agentes/TUI/IME pendientes |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
 | 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
@@ -234,16 +234,16 @@ Contratos iniciales:
 - `Ctrl+C` conserva la semántica VT/ConPTY mediante ETX. `Ctrl+Break`
   dispone de un comando IPC separado que termina el árbol foreground sin
   cerrar PowerShell; cerrar una terminal usa `taskkill /T /F` sobre el PID del
-  shell para impedir descendientes huérfanos. La prueba automatizada crea un
-  árbol desechable, comprueba que mueren padre e hijo y forma parte de CI.
+  shell para impedir descendientes huérfanos. La misma semántica se aplica a
+  los backends local y daemon, y las pruebas verifican tanto la terminación del
+  workload como la supervivencia del shell.
 - Los comandos para reanudar Claude ya se generan por familia de shell:
   asignación `$env:...;` y comillas PowerShell en Windows, sintaxis POSIX en
   macOS. Las rutas con espacios/apóstrofes y prompts multilínea están cubiertos
   por tests. La detección de shims npm reconoce los paquetes oficiales de
   Claude y Codex en vez de reportar `node`, `cli` o `codex.js`.
-- Quedan por cerrar la validación interactiva E2E de Ctrl+C/Ctrl+Break,
-  PowerShell 7/5.1, Claude/Codex y otra TUI, además de compilar toda la suite
-  Rust cuando las fuentes Cargo estén disponibles.
+- Quedan por cerrar los bancos con Claude/Codex y otra TUI, las entradas
+  IME/pegado adversarial y la paridad visual del renderer de bloques.
 
 #### 2026-08-02 — Inicio de Fase 3
 
@@ -376,12 +376,20 @@ Contratos iniciales:
 - Se evitó un falso positivo propio de las PTY: PSReadLine refleja el input en
   el mismo stream que el output, por lo que los sentinelas se construyen dentro
   de PowerShell y nunca aparecen literalmente en la línea enviada.
-- [GitHub Actions #30762055911](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30762055911)
-  dejó verdes los cuatro jobs, incluidos `cargo check`, Clippy estricto y 93
-  tests Rust en Windows (91 superados, 2 ignorados, cero fallos).
+- El banco lanza un workload largo, envía ETX y demuestra que Ctrl+C devuelve
+  el control al mismo shell. Después crea un PowerShell foreground anidado,
+  aplica Ctrl+Break a su árbol y confirma que el PowerShell padre continúa
+  ejecutando comandos.
+- La auditoría descubrió que `pty_interrupt(force=true)` solo resolvía el
+  foreground en el backend local; con el daemon predeterminado degradaba a
+  ETX. El bridge consulta ahora `FgPgid` también al daemon y rechaza siempre el
+  PID del shell y los valores reservados 0/-1 antes de terminar un árbol.
+- [GitHub Actions #30763056976](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30763056976)
+  dejó verdes los cuatro jobs, incluidos `cargo check`, Clippy estricto y 94
+  tests Rust en Windows (92 superados, 2 ignorados, cero fallos).
 - Continúan pendientes para cerrar la Fase 2 los bancos con Claude/Codex y otra
-  TUI, IME/paste adversarial y la comprobación E2E visible de Ctrl+C y
-  Ctrl+Break; no se declara paridad completa antes de esa evidencia.
+  TUI, IME/pegado adversarial y la paridad visual del renderer de bloques; no
+  se declara paridad completa antes de esa evidencia.
 
 ## 6. Fases de implementación
 

@@ -39,7 +39,7 @@ implementación, estado y criterios de aceptación vive en el
 | WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 66/66 tests ejecutados en Windows y macOS. |
 | WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido; `cargo check`, Clippy estricto y tests Rust verdes en ambos sistemas. |
 | WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Matriz interactiva 5.1/7 con DSR, resize, Unicode y entorno, además de contratos OSC, verde en CI. |
-| WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Prueba Windows de padre/hijo verde. |
+| WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Matriz ConPTY 5.1/7 verifica Ctrl+C, Ctrl+Break y supervivencia del shell. |
 | WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Primitivas Win32 verificadas; E2E completo pendiente. |
 | WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 66 tests frontend, incluidos casos drive y UNC. |
 | WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente y etiquetas Explorer/Finder dinámicas. | Implementado con pruebas Rust añadidas. |
@@ -51,6 +51,7 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows estable; cero fallos ni esperas indefinidas. |
 | CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | En Windows el navegador queda deshabilitado con una razón explícita; contrato cubierto por test Rust. |
 | CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
+| CORE-008 | En el modo daemon predeterminado, Ctrl+Break no consultaba el proceso foreground y degradaba silenciosamente a Ctrl+C. | El bridge obtiene el PID foreground del daemon y aplica la misma terminación segura que el backend local, sin seleccionar nunca el shell ni los PID reservados 0/-1. | Prueba ConPTY real y test unitario verdes en Windows. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -64,7 +65,7 @@ npm run test:rust
 ```
 
 La ejecución de referencia en una máquina limpia es
-[GitHub Actions #30762055911](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30762055911):
+[GitHub Actions #30763056976](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30763056976):
 los cuatro jobs de frontend y backend nativo finalizaron correctamente en
 `windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
 warnings como error y la suite Rust.
@@ -272,7 +273,7 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows de `cargo test` descubre 93 tests: 91 superados y 2 ignorados
+La suite Windows de `cargo test` descubre 94 tests: 92 superados y 2 ignorados
 de forma explícita. Cubre el motor (parser, grid, bloques, soft-wraps), paths y
 configuración multiplataforma, transporte/daemon y piezas puras como ranking de
 modelos whisper y base64 de adjuntos.
