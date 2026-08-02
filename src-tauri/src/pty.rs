@@ -1644,18 +1644,26 @@ mod tests {
         );
         let prompt_occurrences_before_ctrl = out.matches("SFTERM_PROMPT_").count();
         write_conpty(writer.as_mut(), "\x03");
-        assert!(
-            read_conpty_until_occurrence(
-                &output_rx,
-                writer.as_mut(),
-                &mut out,
-                &mut answered_dsr,
-                "SFTERM_PROMPT_",
-                prompt_occurrences_before_ctrl + 1,
-                std::time::Duration::from_secs(8),
-            ),
-            "{engine} no restauró el prompt después de Ctrl+C: {out}"
-        );
+        if engine == "powershell.exe" {
+            assert!(
+                read_conpty_until_occurrence(
+                    &output_rx,
+                    writer.as_mut(),
+                    &mut out,
+                    &mut answered_dsr,
+                    "SFTERM_PROMPT_",
+                    prompt_occurrences_before_ctrl + 1,
+                    std::time::Duration::from_secs(8),
+                ),
+                "{engine} no restauró el prompt después de Ctrl+C: {out}"
+            );
+        } else {
+            assert!(
+                wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8))
+                    .is_some(),
+                "{engine} no recuperó el foreground después de Ctrl+C: {out}"
+            );
+        }
         write_conpty(writer.as_mut(), "Write-Output ($p + '_AFTER_CTRL_C')\r");
         assert!(
             read_conpty_until(
