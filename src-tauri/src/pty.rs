@@ -1336,15 +1336,41 @@ mod tests {
         let mut child = pair.slave.spawn_command(cmd).expect("spawn PowerShell");
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("reader");
-        let mut out = String::new();
-        let mut buf = [0u8; 4096];
-        loop {
-            match std::io::Read::read(&mut reader, &mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => out.push_str(&String::from_utf8_lossy(&buf[..n])),
+        let (output_tx, output_rx) = std::sync::mpsc::channel();
+        let reader_thread = std::thread::spawn(move || {
+            let mut out = String::new();
+            let mut buf = [0u8; 4096];
+            loop {
+                match std::io::Read::read(&mut reader, &mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => out.push_str(&String::from_utf8_lossy(&buf[..n])),
+                }
             }
+            let _ = output_tx.send(out);
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if child.try_wait().expect("consultar PowerShell").is_some() {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                drop(pair.master);
+                let _ = child.wait();
+                panic!("PowerShell no terminó dentro de 10 segundos");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
         }
-        let _ = child.wait();
+
+        // Cerrar el pseudoconsole después de que termine el hijo garantiza el
+        // EOF del pipe de salida; leer hasta EOF antes de este drop bloqueaba
+        // indefinidamente el test en windows-latest.
+        drop(pair.master);
+        let out = output_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("EOF de salida ConPTY");
+        reader_thread.join().expect("lector ConPTY");
         assert!(
             out.contains("SFTERM_WINDOWS_OK"),
             "salida real de ConPTY: {out}"
