@@ -1024,7 +1024,10 @@ type LocalPgid = (u32, u32, Option<i32>);
 pub fn foreground_pgids(state: &PtyState) -> Vec<ForegroundPgid> {
     let (mut out, daemon_ids, local_ids): (Vec<ForegroundPgid>, Vec<DaemonPgid>, Vec<LocalPgid>) = {
         let sessions = state.sessions.lock().unwrap();
+        #[cfg(target_os = "macos")]
         let mut ready = Vec::new();
+        #[cfg(target_os = "windows")]
+        let ready = Vec::new();
         #[cfg(target_os = "windows")]
         let mut locals = Vec::new();
         #[cfg(target_os = "macos")]
