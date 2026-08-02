@@ -110,8 +110,8 @@ Contratos iniciales:
 
 | Fase | Estado | Evidencia |
 |---|---|---|
-| 0. Baseline y CI | En curso | Scripts, runner y CI multiplataforma |
-| 1. Frontera de plataforma | En curso | Compilación Rust macOS + Windows |
+| 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
+| 1. Frontera de plataforma | En curso | Check, Clippy y tests Rust verdes en ambos sistemas; auditoría de neutralidad continúa |
 | 2. Terminal Windows | En curso | ConPTY + integración PowerShell OSC validada; E2E pendiente |
 | 3. Daemon persistente | En curso | Named Pipe + Job Object + copia versionada; E2E pendiente |
 | 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
@@ -315,6 +315,31 @@ Contratos iniciales:
   terminación del árbol de procesos correcta; `rustfmt` parsea los Rust tocados.
   El check completo Rust continúa bloqueado antes de compilar porque la caché
   offline no contiene `git2` y este entorno no puede acceder a crates.io.
+
+#### 2026-08-02 — Cierre verificable del baseline nativo
+
+- La ejecución limpia
+  [GitHub Actions #30760271699](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760271699)
+  finalizó con sus cuatro jobs en verde: frontend Windows/macOS y backend
+  nativo Windows/macOS.
+- Windows superó los contratos PowerShell, árbol de procesos y primitivas
+  Named Pipe/Job Object, seguido de `cargo check --locked`, Clippy estricto y
+  `cargo test --locked`.
+- La suite Rust Windows descubrió 91 tests: 89 superados, cero fallos y 2
+  ignorados explícitamente. La suite frontend ejecutó 66/66 tests en los dos
+  sistemas, además de TypeScript y el build Vite de producción.
+- El primer ciclo de CI expuso defectos que no aparecían en el checkout local:
+  conversión CRLF de fixtures, expectativas de rutas macOS bajo Windows,
+  separadores Win32 en resultados y una prueba ConPTY que no respondía a la
+  consulta DSR (`ESC[6n`) emitida por PowerShell. Se corrigieron con
+  normalización de entrada, expectativas por plataforma, timeouts acotados y
+  la respuesta DSR que ya utiliza el motor de terminal real.
+- El bloqueo `WSAEACCES` de Cargo permanece como diagnóstico exclusivo de este
+  entorno de ejecución local. La compilación en runner Windows limpio confirma
+  que no procede modificar `Cargo.toml`, `Cargo.lock` ni introducir mirrors.
+- Con esta evidencia se cierra la Fase 0. La Fase 1 sigue abierta únicamente
+  para completar la auditoría de neutralidad de módulos y capacidades, no por
+  fallos de resolución, compilación o tests Rust.
 
 ## 6. Fases de implementación
 

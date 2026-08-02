@@ -1,6 +1,8 @@
 # SFTerm Multiplataforma
 
-> **Nota:** este repositorio es un snapshot público del código de SFTerm, compartido con la comunidad de SaaS Factory. El desarrollo activo ocurre en un repo privado; este espejo se actualiza por tandas.
+> **Nota:** este repositorio de adaptación permanece privado durante el
+> desarrollo y la auditoría. Está previsto publicarlo cuando la migración
+> alcance el nivel de estabilidad documentado en este README y en el PRP.
 
 ## Procedencia, autoría y propósito de esta modificación
 
@@ -34,18 +36,19 @@ implementación, estado y criterios de aceptación vive en el
 | ID | Problema detectado en la base original | Corrección incorporada en esta adaptación | Evidencia/estado |
 |---|---|---|---|
 | WIN-001 | Los scripts frontend dependían de `rm`, `cp` y quoting POSIX, por lo que el build fallaba en Windows. | Scripts Node neutrales al shell y bootstrap PowerShell reproducible. | Corregido; `npm run validate:frontend` verde. |
-| WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 65/65 tests ejecutados. |
-| WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido a nivel de resolución; check Rust completo pendiente de `git2`. |
-| WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Contratos PowerShell automatizados y verdes. |
+| WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 66/66 tests ejecutados en Windows y macOS. |
+| WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido; `cargo check`, Clippy estricto y tests Rust verdes en ambos sistemas. |
+| WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Contratos PowerShell y prueba ConPTY real automatizados y verdes. |
 | WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Prueba Windows de padre/hijo verde. |
 | WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Primitivas Win32 verificadas; E2E completo pendiente. |
-| WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 65 tests frontend, incluidos casos drive y UNC. |
+| WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 66 tests frontend, incluidos casos drive y UNC. |
 | WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente y etiquetas Explorer/Finder dinámicas. | Implementado con pruebas Rust añadidas. |
 | WIN-009 | Comandos para reanudar agentes y crear worktrees emitían sintaxis POSIX bajo PowerShell. | Generación por familia de shell, comillas literales seguras y propagación de stderr/exit code. | Tests de quoting PowerShell/POSIX verdes. |
 | CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
 | CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
-| CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | `cargo fmt --all -- --check` verde localmente. |
+| CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | Formato y Clippy estricto verdes en Windows y macOS. |
 | CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite 66/66. |
+| CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows: 89 tests Rust superados y 2 ignorados; cero fallos. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
 
@@ -54,7 +57,15 @@ npm run validate:frontend
 npm run test:shell:windows
 npm run test:process-tree:windows
 npm run test:ptyd-primitives:windows
+npm run check:rust
+npm run test:rust
 ```
+
+La ejecución de referencia en una máquina limpia es
+[GitHub Actions #30760271699](https://github.com/excellentaisolutions/sfterm-Multiplataforma/actions/runs/30760271699):
+los cuatro jobs de frontend y backend nativo finalizaron correctamente en
+`windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
+warnings como error y la suite Rust.
 
 Las áreas todavía no cerradas —WebView2 completo, daemon E2E, atajos/ventana,
 voz, instaladores firmados y hardening final— permanecen marcadas como
@@ -259,8 +270,10 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-Los 35 tests de `cargo test` cubren el motor (parser, grid, bloques, soft-wraps)
-y las piezas puras nuevas (ranking de modelos whisper, base64 de adjuntos).
+La suite Windows de `cargo test` descubre 91 tests: 89 superados y 2 ignorados
+de forma explícita. Cubre el motor (parser, grid, bloques, soft-wraps), paths y
+configuración multiplataforma, transporte/daemon y piezas puras como ranking de
+modelos whisper y base64 de adjuntos.
 
 ## Reglas duras del repo
 
