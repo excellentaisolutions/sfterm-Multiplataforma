@@ -421,7 +421,8 @@ Contratos iniciales:
 - Claude/Codex salen mediante Ctrl+C cooperativo y Vim mediante `:q!`. Un prompt
   PowerShell único y numerado demuestra que cada TUI restauró la consola antes
   de ejecutar el siguiente comando. Claude solicita dos Ctrl+C en onboarding;
-  el harness repite solo cuando no aparece el prompt tras la primera pulsación.
+  el harness reproduce explícitamente ambas pulsaciones con 200 ms de intervalo,
+  mientras Codex recibe una sola.
 - La terminación destructiva permanece aislada en el banco Ctrl+Break: matar
   una TUI en modo raw impide su cleanup y contaminaría artificialmente las
   pruebas siguientes. Después del banco cooperativo continúan verificándose

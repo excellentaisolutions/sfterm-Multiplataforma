@@ -1420,7 +1420,7 @@ mod tests {
         engine: &str,
         command: &str,
         expected_name: &str,
-        graceful_exit: Option<&str>,
+        graceful_exit: Option<(&str, usize)>,
         marker_suffix: &str,
         shell_pid: u32,
         output: &std::sync::mpsc::Receiver<String>,
@@ -1452,19 +1452,12 @@ mod tests {
 
         *prompt_seq += 1;
         let prompt_marker = format!("SFTERM_PROMPT_{}>", *prompt_seq);
-        if let Some(keys) = graceful_exit {
-            write_conpty(writer, keys);
-            if !read_conpty_until(
-                output,
-                writer,
-                captured,
-                answered_dsr,
-                &prompt_marker,
-                std::time::Duration::from_millis(900),
-            ) {
-                // Claude pide expresamente un segundo Ctrl+C; otras TUIs no
-                // reciben esta repetición si ya devolvieron el prompt único.
+        if let Some((keys, attempts)) = graceful_exit {
+            for attempt in 0..attempts {
                 write_conpty(writer, keys);
+                if attempt + 1 < attempts {
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+                }
             }
         } else {
             assert!(
@@ -1619,7 +1612,7 @@ mod tests {
                 engine,
                 "$env:CI=$null; claude --safe-mode --no-chrome",
                 "claude",
-                Some("\x03"),
+                Some(("\x03", 2)),
                 "CLAUDE",
                 shell_pid,
                 &output_rx,
@@ -1632,7 +1625,7 @@ mod tests {
                 engine,
                 "$env:CI=$null; codex",
                 "codex",
-                Some("\x03"),
+                Some(("\x03", 1)),
                 "CODEX",
                 shell_pid,
                 &output_rx,
@@ -1645,7 +1638,7 @@ mod tests {
                 engine,
                 "& 'C:\\Program Files\\Git\\usr\\bin\\vim.exe' -u NONE -N",
                 "vim",
-                Some("\x1b:q!\r"),
+                Some(("\x1b:q!\r", 1)),
                 "VIM",
                 shell_pid,
                 &output_rx,
