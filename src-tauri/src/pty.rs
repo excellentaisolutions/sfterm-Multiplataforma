@@ -1369,6 +1369,94 @@ mod tests {
     }
 
     #[cfg(target_os = "windows")]
+    fn wait_conpty_foreground(
+        shell_pid: u32,
+        expected_name: Option<&str>,
+        timeout: std::time::Duration,
+    ) -> Option<(u32, String)> {
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            let pid = windows_foreground_processes(&[shell_pid])
+                .get(&shell_pid)
+                .copied()
+                .unwrap_or(shell_pid as i32);
+            if pid > 0 {
+                let pid = pid as u32;
+                if expected_name.is_none() && pid == shell_pid {
+                    return Some((pid, "shell".into()));
+                }
+                if pid != shell_pid {
+                    let sys = sysinfo::System::new_all();
+                    if let Some(process) = sys.process(sysinfo::Pid::from_u32(pid)) {
+                        let name = crate::metrics::resolve_fg_name(process).to_ascii_lowercase();
+                        if expected_name.is_none_or(|expected| name == expected) {
+                            return Some((pid, name));
+                        }
+                    }
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        None
+    }
+
+    #[cfg(target_os = "windows")]
+    #[allow(clippy::too_many_arguments)]
+    fn exercise_real_tui(
+        engine: &str,
+        command: &str,
+        expected_name: &str,
+        graceful_exit: Option<&str>,
+        marker_suffix: &str,
+        shell_pid: u32,
+        output: &std::sync::mpsc::Receiver<String>,
+        writer: &mut dyn std::io::Write,
+        captured: &mut String,
+        answered_dsr: &mut usize,
+    ) {
+        write_conpty(writer, &format!("{command}\r"));
+        let (target, resolved) = wait_conpty_foreground(
+            shell_pid,
+            Some(expected_name),
+            std::time::Duration::from_secs(12),
+        )
+        .unwrap_or_else(|| {
+            panic!("{engine} no detectó {expected_name} como foreground: {captured}")
+        });
+        assert_eq!(resolved, expected_name);
+
+        if let Some(keys) = graceful_exit {
+            write_conpty(writer, keys);
+        } else {
+            assert!(
+                windows_taskkill_tree(target),
+                "terminar el árbol de {expected_name} ({target})"
+            );
+        }
+        assert!(
+            wait_conpty_foreground(shell_pid, None, std::time::Duration::from_secs(8)).is_some(),
+            "{expected_name} no devolvió el foreground a {engine}"
+        );
+
+        write_conpty(
+            writer,
+            &format!("Write-Output ($p + '_AFTER_' + '{marker_suffix}')\r"),
+        );
+        let marker = format!("SFTERM_AFTER_{marker_suffix}");
+        assert!(
+            read_conpty_until(
+                output,
+                writer,
+                captured,
+                answered_dsr,
+                &marker,
+                std::time::Duration::from_secs(5),
+            ),
+            "{engine} no recuperó el prompt después de {expected_name}: {captured}"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
     fn exercise_interactive_conpty(engine: &str) {
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -1383,6 +1471,7 @@ mod tests {
         cmd.args(["-NoLogo", "-NoProfile", "-NoExit"]);
         cmd.env("SFTERM_TERM_ID", "42");
         let mut child = pair.slave.spawn_command(cmd).expect("spawn PowerShell");
+        let shell_pid = child.process_id().expect("pid de PowerShell");
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().expect("reader");
         let mut writer = pair.master.take_writer().expect("writer");
@@ -1442,6 +1531,47 @@ mod tests {
             "{engine} no conservó el pegado bracketed multilínea/Unicode: {out}"
         );
 
+        if engine == "powershell.exe"
+            && std::env::var("SFTERM_REAL_TUI_MATRIX").as_deref() == Ok("1")
+        {
+            exercise_real_tui(
+                engine,
+                "$env:CI=$null; claude --safe-mode --no-chrome",
+                "claude",
+                None,
+                "CLAUDE",
+                shell_pid,
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+            );
+            exercise_real_tui(
+                engine,
+                "$env:CI=$null; codex",
+                "codex",
+                None,
+                "CODEX",
+                shell_pid,
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+            );
+            exercise_real_tui(
+                engine,
+                "& 'C:\\Program Files\\Git\\usr\\bin\\vim.exe' -u NONE -N",
+                "vim",
+                Some("\x1b:q!\r"),
+                "VIM",
+                shell_pid,
+                &output_rx,
+                writer.as_mut(),
+                &mut out,
+                &mut answered_dsr,
+            );
+        }
+
         // Ctrl+C real: interrumpe un workload largo mediante ETX y conserva
         // el mismo PowerShell para ejecutar el comando siguiente.
         write_conpty(
@@ -1493,7 +1623,6 @@ mod tests {
             ),
             "{engine} no inició el workload de Ctrl+Break: {out}"
         );
-        let shell_pid = child.process_id().expect("pid de PowerShell");
         let foreground_deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         let mut foreground = shell_pid as i32;
         while std::time::Instant::now() < foreground_deadline {
