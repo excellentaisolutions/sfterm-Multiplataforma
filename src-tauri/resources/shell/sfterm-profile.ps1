@@ -56,6 +56,17 @@ try {
     $sftermOptions = Get-PSReadLineOption
     $global:__SFTermPreviousHistoryHandler = $sftermOptions.AddToHistoryHandler
 
+    # A fresh terminal must look fresh. PSReadLine can paint the last global
+    # history entry as dim predictive text even with an empty input buffer;
+    # visually that looks like WinTerm injected a command. Disable only the
+    # prediction inside this child shell. History itself remains untouched.
+    try {
+        Set-PSReadLineOption -PredictionSource None
+    }
+    catch {
+        # Older PSReadLine versions have no prediction feature/property.
+    }
+
     Set-PSReadLineOption -AddToHistoryHandler {
         param([string] $line)
 

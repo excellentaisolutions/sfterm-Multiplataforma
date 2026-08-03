@@ -27,7 +27,11 @@ $probe = @'
 $ErrorActionPreference = 'Stop'
 $env:TERM_PROGRAM = 'SFTerm'
 . $env:SFTERM_TEST_PROFILE
-$handler = (Get-PSReadLineOption).AddToHistoryHandler
+$options = Get-PSReadLineOption
+if ($null -ne $options.PSObject.Properties['PredictionSource'] -and $options.PredictionSource -ne 'None') {
+    throw "Predictive command text remains enabled: $($options.PredictionSource)"
+}
+$handler = $options.AddToHistoryHandler
 $null = $handler.Invoke('Write-Output hello')
 $null = prompt
 '@
