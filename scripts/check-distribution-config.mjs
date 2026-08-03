@@ -28,6 +28,7 @@ const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
 const unsignedWorkflow = fs.readFileSync(".github/workflows/package-windows-unsigned.yml", "utf8");
 
 assert.equal(base.bundle.active, true);
+assert.deepEqual(base.plugins.updater, { pubkey: "", endpoints: [] });
 assert.deepEqual(windows.bundle.targets, ["nsis", "msi"]);
 assert.equal(windows.bundle.windows.nsis.installMode, "currentUser");
 assert.equal(windows.bundle.windows.nsis.installerHooks, "windows/nsis-hooks.nsh");
