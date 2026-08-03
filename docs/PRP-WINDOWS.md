@@ -117,8 +117,8 @@ Contratos iniciales:
 | 4. Navegador WebView2 | Completada | Host aislado y gate completo verificados E2E contra WebView2 real |
 | 5. Filesystem y paths | Completada | Drive/UNC/Unicode, AppData y migración verdes; ShellExecuteW, IFileOperation recuperable y guardas contra junctions verificados |
 | 6. Atajos, ventana y voz | Completada | `primary` multiplataforma, chrome HWND nativo, WASAPI/CPAL real y TTS WebView2 verificados; STT ausente se desactiva con diagnóstico |
-| 7. Distribución | En progreso | NSIS per-user + MSI, updater Rust/UI, rollback firmado y release/SBOM preparados; faltan claves, firma real y ciclos install/upgrade/uninstall |
-| 8. Hardening y release | Pendiente | Matriz E2E y auditoría de seguridad |
+| 7. Distribución | En progreso | NSIS per-user + MSI, updater Rust/UI, rollback firmado, release/SBOM y ciclo unsigned aislado preparados; faltan el resultado del runner limpio, claves, firma real y paridad ARM64 |
+| 8. Hardening y release | Pendiente | Matriz E2E prolongada y hardening; auditorías npm/RustSec ya integradas |
 
 ### Registro de ejecución
 
@@ -550,6 +550,26 @@ Contratos iniciales:
 - El canal no puede considerarse operativo mientras el repositorio privado no
   exponga `latest.json` y los assets a clientes anónimos. También faltan las
   credenciales reales y los ciclos E2E de instalación, upgrade y desinstalación.
+
+### 3 de agosto de 2026 — Gate unsigned y ciclo del instalador preparados
+
+- Se separó el empaquetado sin certificado del release de producción: el nuevo
+  workflow solo tiene permiso de lectura, etiqueta los artefactos como no
+  distribuibles, los retiene siete días y no puede crear un GitHub Release.
+- El ciclo E2E instala NSIS en un runner limpio, arranca el daemon desde el
+  binario instalado sin toolchain, aplica un upgrade de parche y desinstala en
+  silencio. Configuración y sesiones deben sobrevivir al upgrade y al uninstall.
+- Se corrigió la semántica de consentimiento del desinstalador. Las rutas reales
+  `%APPDATA%\SFTerm` y `%LOCALAPPDATA%\SFTerm` solo se borran si el usuario marca
+  la casilla correspondiente y nunca durante un update.
+- La validación general incorpora `npm audit --omit=dev --audit-level=high` y
+  `rustsec/audit-check`; el audit npm local no encontró vulnerabilidades.
+- Un bundle NSIS unsigned de upgrade 0.1.1 compiló incluyendo el hook y
+  `npm run validate:windows` volvió a quedar verde: 74 tests frontend, 100 Rust,
+  límites de plataforma y los cinco E2E persistentes del daemon.
+- El ciclo de instalación no se ejecutó en la estación local porque contiene
+  datos preexistentes de SFTerm. La evidencia final queda pendiente del runner
+  efímero que se activa al publicar este checkpoint.
 
 ## 6. Fases de implementación
 

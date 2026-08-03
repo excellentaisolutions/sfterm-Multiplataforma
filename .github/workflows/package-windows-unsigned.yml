@@ -1,0 +1,84 @@
+name: package-windows-unsigned
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/package-windows-unsigned.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/tauri.conf.json"
+      - "src-tauri/tauri.windows.conf.json"
+      - "src-tauri/windows/**"
+      - "scripts/check-distribution-config.mjs"
+      - "scripts/prepare-installer-test-config.mjs"
+      - "scripts/test-windows-installer-lifecycle.ps1"
+
+permissions:
+  contents: read
+
+jobs:
+  package-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run validate:frontend
+      - run: npm run check:distribution
+      - run: npm audit --omit=dev --audit-level=high
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build unsigned baseline installers
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles nsis msi --no-sign
+
+      - name: Preserve baseline and prepare upgrade fixture
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/unsigned | Out-Null
+          Copy-Item src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe artifacts/unsigned/SFTerm_baseline_x64-setup.exe
+          npm run installer:test-config
+
+      - name: Bundle unsigned upgrade fixture
+        run: npm run tauri bundle -- --target x86_64-pc-windows-msvc --config src-tauri/target/installer-upgrade-test.json --bundles nsis --no-sign --ci
+
+      - name: Exercise clean install, upgrade and uninstall
+        shell: pwsh
+        run: |
+          $upgradeVersion = (Get-Content -Raw src-tauri/target/installer-upgrade-test.json | ConvertFrom-Json).version
+          $upgradeInstaller = "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SFTerm_${upgradeVersion}_x64-setup.exe"
+          npm run test:installer-lifecycle:windows -- -BaselineInstaller artifacts/unsigned/SFTerm_baseline_x64-setup.exe -UpgradeInstaller $upgradeInstaller
+
+      - name: Inventory unsigned evidence
+        shell: pwsh
+        run: |
+          $upgradeVersion = (Get-Content -Raw src-tauri/target/installer-upgrade-test.json | ConvertFrom-Json).version
+          Copy-Item "src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/SFTerm_${upgradeVersion}_x64-setup.exe" artifacts/unsigned/
+          Copy-Item src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi artifacts/unsigned/
+          npm run release:sbom
+          Get-ChildItem artifacts/unsigned -File | ForEach-Object {
+            $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName
+            "$($hash.Hash.ToLowerInvariant())  $($_.Name)"
+          } | Set-Content artifacts/unsigned/SHA256SUMS -Encoding utf8NoBOM
+          "UNSIGNED TEST ARTIFACTS - DO NOT DISTRIBUTE" | Set-Content artifacts/unsigned/UNSIGNED.txt -Encoding utf8NoBOM
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sfterm-windows-x64-unsigned-test-only
+          path: |
+            artifacts/unsigned/*
+            artifacts/sfterm.cdx.json
+          if-no-files-found: error
+          retention-days: 7

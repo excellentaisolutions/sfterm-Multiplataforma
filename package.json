@@ -27,6 +27,8 @@
     "release:config": "node scripts/prepare-release-config.mjs",
     "release:sbom": "node scripts/generate-sbom.mjs",
     "release:verify:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release-artifacts.ps1",
+    "installer:test-config": "node scripts/prepare-installer-test-config.mjs",
+    "test:installer-lifecycle:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-installer-lifecycle.ps1",
     "env:check": "node scripts/check-environment.mjs",
     "cargo:doctor": "node scripts/check-cargo.mjs",
     "cargo:doctor:online": "node scripts/check-cargo.mjs --online",

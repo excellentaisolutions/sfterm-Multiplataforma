@@ -42,3 +42,22 @@ los instaladores a un endpoint HTTPS publico.
 ARM64 se habilitara cuando la matriz nativa (ConPTY, WebView2, WASAPI, updater e
 instaladores) tenga la misma evidencia que x64; no se publica un asset nominal
 sin paridad comprobada.
+
+## Artefactos de prueba sin certificado
+
+`package-windows-unsigned.yml` es un workflow manual y tambien se activa cuando
+cambia el empaquetado. Solo lee el contenido del repositorio y nunca publica
+releases. Genera artefactos marcados `UNSIGNED TEST ARTIFACTS - DO NOT
+DISTRIBUTE`, los conserva siete dias y nunca crea un GitHub Release. Tambien
+ejecuta un ciclo NSIS limpio con una version base y otra de upgrade, comprueba
+que el binario instalado arranca sin toolchain y confirma que config y sesion
+sobreviven tanto al upgrade como al uninstall silencioso.
+
+El desinstalador interactivo incluye la casilla de borrado de datos de Tauri. El
+hook `src-tauri/windows/nsis-hooks.nsh` extiende esa casilla a las rutas reales
+de SFTerm (`%APPDATA%\SFTerm` y `%LOCALAPPDATA%\SFTerm`) y la ignora siempre en
+modo update.
+
+La CI general ejecuta `npm audit` para dependencias de produccion y el action
+oficial `rustsec/audit-check` contra `src-tauri/Cargo.lock`. Una vulnerabilidad
+alta de npm o un advisory RustSec hace fallar la puerta de validacion.
