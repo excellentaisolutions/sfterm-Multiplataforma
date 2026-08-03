@@ -116,7 +116,7 @@ Contratos iniciales:
 | 3. Daemon persistente | Completada | TUI/replay sobreviven reconexión y rebuild; cliente lento, cierre del árbol y aislamiento entre configs verdes |
 | 4. Navegador WebView2 | Completada | Host aislado y gate completo verificados E2E contra WebView2 real |
 | 5. Filesystem y paths | Completada | Drive/UNC/Unicode, AppData y migración verdes; ShellExecuteW, IFileOperation recuperable y guardas contra junctions verificados |
-| 6. Atajos, ventana y voz | Pendiente | UX Windows y captura WASAPI |
+| 6. Atajos, ventana y voz | Completada | `primary` multiplataforma, chrome HWND nativo, WASAPI/CPAL real y TTS WebView2 verificados; STT ausente se desactiva con diagnóstico |
 | 7. Distribución | Pendiente | NSIS/MSI firmados y updater |
 | 8. Hardening y release | Pendiente | Matriz E2E y auditoría de seguridad |
 
@@ -506,6 +506,33 @@ Contratos iniciales:
   de terminal contenía `ñ_界`.
 - Con esta evidencia se cumplen los criterios restantes de ambas fases. Las
   Fases 2 y 5 pasan a completadas; la siguiente fase funcional es la Fase 6.
+
+#### 2026-08-03 — Cierre de Fase 6: atajos, ventana y voz
+
+- Los defaults usan el modificador semántico `primary`: Command en macOS y
+  Control en Windows. `cmd`/`meta`, `ctrl` y `alt` continúan disponibles como
+  modificadores físicos avanzados. La migración v7→v8 convierte únicamente
+  valores idénticos a defaults publicados y conserva todos los remapeos.
+- Captura, matching, detección de colisiones y presentación comparten la misma
+  resolución por plataforma. En WebView2 real el panel mostró `Ctrl+Alt+J`,
+  `Ctrl+Shift+F`, etc., sin glifos Command; macOS conserva `⌘⌥J` y compañía.
+- Windows usa exclusivamente el titlebar decorado del sistema y sincroniza en
+  él el título vivo de la conversación. El HWND aislado expuso `Caption`,
+  `ThickFrame`, `MinimizeBox`, `MaximizeBox` y `SystemMenu`, respondió a
+  maximizar/restaurar y devolvió DPI y monitor válidos. Snap Layouts,
+  Alt+Space y doble clic quedan así en manos del non-client area de Windows.
+- El stub de voz fue sustituido por CPAL sobre el endpoint WASAPI de entrada
+  predeterminado. Mezcla canales a mono, limita la grabación, remuestrea a
+  16 kHz PCM16, escribe un WAV temporal y transcribe localmente con
+  `whisper-cli`; cancelación o error descartan el audio temporal.
+- El E2E de hardware abrió el micrófono real y recibió frames durante 700 ms.
+  Este equipo no tiene aún `whisper-cli` ni modelo ggml, por lo que el botón de
+  dictado aparece desactivado con el motivo exacto sin afectar el composer.
+- WebView2 publicó `speechSynthesis`, `SpeechSynthesisUtterance` y tres voces
+  Microsoft `es-ES`; una utterance silenciada terminó sin error. La lectura
+  TTS instalada funciona y la ausencia del stack STT se degrada explícitamente.
+- Se cumplen los criterios de aceptación de la Fase 6. La siguiente fase es
+  distribución y actualización (Fase 7).
 
 ## 6. Fases de implementación
 

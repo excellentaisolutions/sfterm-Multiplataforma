@@ -84,6 +84,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_relaunch,
+            debug_harness::debug_harness_result,
             platform::platform_capabilities,
             pty::pty_spawn,
             pty::pty_write,

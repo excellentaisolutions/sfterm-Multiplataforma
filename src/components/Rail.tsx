@@ -9,6 +9,7 @@ import * as ipc from "../core/ipc";
 import { sortByRail } from "../core/cycle";
 import * as T from "../core/tiling";
 import { pathBasename } from "../core/path-utils";
+import { nativeShortcutText } from "../core/keybinds";
 
 /** Rail del taller — UNA columna estilo Claude Desktop (30 jul 2026):
  *  busqueda + filtros arriba, ACTIVAS (terminales vivas), y el HISTORIAL del
@@ -47,7 +48,7 @@ export default function Rail() {
       <aside className="chat-side termrail">
         <button
           className="chat-newconv"
-          title="Terminal nueva (⌘N)"
+          title={nativeShortcutText("Terminal nueva (⌘N)")}
           onClick={() => void actions.gateSpawn({ show: true })}
         >
           + Nueva terminal
@@ -329,7 +330,7 @@ function TermList({ query }: { query: string }) {
               <span className="chat-convtitle">{panelTitle(p)}</span>
               <button
                 className="chat-convdel kill"
-                title="Cerrar la conversación: mata la terminal y la quita del rail (⌘W)"
+                title={nativeShortcutText("Cerrar la conversación: mata la terminal y la quita del rail (⌘W)")}
                 onClick={(e) => {
                   e.stopPropagation();
                   actions.closePanel(p.id);
@@ -359,7 +360,7 @@ function TermList({ query }: { query: string }) {
         ))}
       </Collapse>
       {!all.length && (
-        <div className="termrail-empty">⌘N abre una terminal</div>
+        <div className="termrail-empty">{nativeShortcutText("⌘N abre una terminal")}</div>
       )}
     </div>
   );

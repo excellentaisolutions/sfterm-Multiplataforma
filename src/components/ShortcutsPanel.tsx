@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useStore } from "../core/store";
-import { KEYBIND_GROUPS, FIXED_GESTURES, formatCombo, type KeybindAction } from "../core/keybinds";
+import { KEYBIND_GROUPS, fixedGestures, formatCombo, type KeybindAction } from "../core/keybinds";
+import type { ShortcutPlatform } from "../core/keys";
 
 /** Panel de atajos (⌘/) — el mapa completo del teclado, estilo VSCode.
  *  Solo lectura: para remapear esta el tab "Atajos" de Settings (⌘,).
@@ -11,6 +12,7 @@ import { KEYBIND_GROUPS, FIXED_GESTURES, formatCombo, type KeybindAction } from 
 export default function ShortcutsPanel() {
   const open = useStore((s) => s.ui.shortcuts);
   const keys = useStore((s) => s.config?.keys);
+  const platform = (useStore((s) => s.capabilities?.os) ?? "macos") as ShortcutPlatform;
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +42,9 @@ export default function ShortcutsPanel() {
       <div className="panel settings-card shortcuts-card" onClick={(e) => e.stopPropagation()}>
         <div className="shortcuts-head">
           <b>Atajos de teclado</b>
-          <span className="shortcuts-note">se remapean en Configuración → Atajos (⌘,)</span>
+          <span className="shortcuts-note">
+            se remapean en Configuración → Atajos ({formatCombo("primary+,", platform)})
+          </span>
           <button className="reader-btn" onClick={close} title="Cerrar (Esc)">✕</button>
         </div>
         <div className="shortcuts-cols">
@@ -55,7 +59,7 @@ export default function ShortcutsPanel() {
                 {rows.map((r) => (
                   <div key={r.action} className="shortcuts-row">
                     <span className="shortcuts-label">{r.label}</span>
-                    <kbd>{formatCombo(r.key!)}</kbd>
+                    <kbd>{formatCombo(r.key!, platform)}</kbd>
                   </div>
                 ))}
               </section>
@@ -63,7 +67,7 @@ export default function ShortcutsPanel() {
           })}
           <section className="shortcuts-group">
             <h4>Gestos</h4>
-            {FIXED_GESTURES.map(([k, label]) => (
+            {fixedGestures(platform).map(([k, label]) => (
               <div key={k} className="shortcuts-row">
                 <span className="shortcuts-label">{label}</span>
                 <kbd>{k}</kbd>

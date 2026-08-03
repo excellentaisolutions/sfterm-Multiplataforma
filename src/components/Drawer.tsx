@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useStore } from "../core/store";
 import { manager } from "../core/term";
 import * as actions from "../core/actions";
+import { nativeShortcutText } from "../core/keybinds";
 
 /** DRAWER ⌘J — terminal rapida que sube desde abajo (estilo panel de VSCode),
  *  visible SOBRE cualquier superficie (shell z-85; sus terminales viven en el
@@ -131,7 +132,7 @@ export default function Drawer() {
         <button
           className="reader-btn"
           onClick={() => void actions.toggleDrawer()}
-          title="Ocultar (⌘J) — las terminales siguen vivas"
+          title={nativeShortcutText("Ocultar (⌘J) — las terminales siguen vivas")}
         >
           ✕
         </button>

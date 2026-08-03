@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../core/store";
 import * as actions from "../core/actions";
 import * as ipc from "../core/ipc";
+import { actionCombo } from "../core/keybinds";
+import type { ShortcutPlatform } from "../core/keys";
 
 interface Cmd {
   label: string;
@@ -14,6 +16,7 @@ export default function Palette() {
   const open = useStore((s) => s.ui.palette);
   const config = useStore((s) => s.config);
   const capabilities = useStore((s) => s.capabilities);
+  const platform = (capabilities?.os ?? "macos") as ShortcutPlatform;
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,8 +40,8 @@ export default function Palette() {
       });
     }
     c.push(
-      { label: "Nueva terminal", hint: "⌘J", run: () => void actions.newTerminal() },
-      { label: "Terminal con el agente", hint: "⌘⌥J", run: () => void actions.newConversation() },
+      { label: "Nueva terminal", hint: actionCombo("new_terminal", config.keys, platform), run: () => void actions.newTerminal() },
+      { label: "Terminal con el agente", hint: actionCombo("new_conversation", config.keys, platform), run: () => void actions.newConversation() },
       {
         label: "Leer último bloque (modo lectura)",
         hint: "☰ vista rica + voz",
@@ -54,7 +57,7 @@ export default function Palette() {
       },
       {
         label: "Buscar por contenido en el proyecto",
-        hint: "⌘⇧F",
+        hint: actionCombo("search_project", config.keys, platform),
         run: () => useStore.getState().setUI({ search: true }),
       },
       {
@@ -74,9 +77,9 @@ export default function Palette() {
             hint: "panel web nativo — el agente lo opera por el gate",
             run: () => void actions.openBrowser(),
           },
-      { label: "Toggle árbol", hint: "⌘B", run: () => useStore.getState().set({ treeVisible: !useStore.getState().treeVisible }) },
-      { label: "Toggle rail", hint: "⌘⌥B", run: () => useStore.getState().set({ railVisible: !useStore.getState().railVisible }) },
-      { label: "Configuración", hint: "⌘,", run: () => useStore.getState().setUI({ settings: true }) },
+      { label: "Toggle árbol", hint: actionCombo("toggle_tree", config.keys, platform), run: () => useStore.getState().set({ treeVisible: !useStore.getState().treeVisible }) },
+      { label: "Toggle rail", hint: actionCombo("toggle_rail", config.keys, platform), run: () => useStore.getState().set({ railVisible: !useStore.getState().railVisible }) },
+      { label: "Configuración", hint: actionCombo("settings", config.keys, platform), run: () => useStore.getState().setUI({ settings: true }) },
       {
         label: "Abrir config.toml en el visor",
         run: async () => actions.openFileTab(await ipc.configPath()),
@@ -91,7 +94,7 @@ export default function Palette() {
       );
     }
     return c;
-  }, [capabilities, config, q]);
+  }, [capabilities, config, platform, q]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();

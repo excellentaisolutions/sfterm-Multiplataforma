@@ -19,6 +19,14 @@ pub fn enabled() -> bool {
     cfg!(debug_assertions) || std::env::var("SFTERM_DEBUG").ok().as_deref() == Some("1")
 }
 
+#[tauri::command]
+pub fn debug_harness_result(value: String) -> Result<(), String> {
+    if !enabled() {
+        return Err("debug harness desactivado".into());
+    }
+    std::fs::write(DONE_FILE, value).map_err(|error| error.to_string())
+}
+
 pub fn start(app: AppHandle) {
     if !enabled() {
         return;

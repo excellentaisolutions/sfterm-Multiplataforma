@@ -2534,6 +2534,30 @@ body.dragging .termrail-list { cursor: grabbing; }
 
 /* --- dictado por voz --- */
 
+.composer-voice {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 10px;
+}
+.composer-voice:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.composer-voice:disabled { opacity: 0.42; cursor: not-allowed; }
+.composer-voice.recording {
+  color: var(--red);
+  border-color: var(--red);
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+.composer-voice-notice {
+  padding: 5px 12px 0;
+  color: var(--dim);
+  font-size: 11px;
+}
+@keyframes voice-pulse { 50% { opacity: 0.45; } }
+
 .chat-notice {
   margin: 0;
   width: 100%;

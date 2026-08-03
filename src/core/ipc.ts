@@ -279,8 +279,16 @@ export const engineFind = (id: number, q: string, fromAbs?: number, backward?: b
 //  attachSave murieron con el chat nativo — purga 21 jul, agent.rs fuera)
 
 // dictado por voz (ffmpeg + whisper local)
-export const voiceStatus = () =>
-  invoke<{ ffmpeg: boolean; whisper: boolean; model: string | null }>("voice_status");
+export interface VoiceStatus {
+  ffmpeg: boolean;
+  whisper: boolean;
+  model: string | null;
+  available?: boolean;
+  reason?: string | null;
+  backend?: string;
+  device?: string | null;
+}
+export const voiceStatus = () => invoke<VoiceStatus>("voice_status");
 export const voiceStart = () => invoke<void>("voice_start");
 export const voiceStop = () => invoke<string>("voice_stop");
 export const voiceCancel = () => invoke<void>("voice_cancel");

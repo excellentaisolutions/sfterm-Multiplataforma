@@ -11,6 +11,7 @@ import FileView from "./FileView";
 import Logo from "./Logo";
 import { parseDroppedPaths, type DragSrc, type DropHint, type DropRegion, type Rect } from "../core/types";
 import { fileManagerLabel, pathBasename } from "../core/path-utils";
+import { nativeShortcutText } from "../core/keybinds";
 
 const TAB_H = 30;
 const GAP = 8;
@@ -402,7 +403,7 @@ export default function Tiling() {
         {isMd && (
           <button
             className={`leaf-action-btn ${!act.raw ? "on" : ""}`}
-            title={act.raw ? "Ver renderizado (⌘⇧M)" : "Ver fuente (⌘⇧M)"}
+            title={nativeShortcutText(act.raw ? "Ver renderizado (⌘⇧M)" : "Ver fuente (⌘⇧M)")}
             onClick={() => actions.setFileTabRaw(leaf.id, leaf.active, !act.raw)}
           >
             {act.raw ? <IconEyeOff /> : <IconEye />}
@@ -479,10 +480,10 @@ export default function Tiling() {
                 className="tab-close"
                 title={
                   tab.kind === "term"
-                    ? "Quitar de la vista (⌘W). La conversación sigue VIVA en el rail — para cerrarla de verdad, la ✕ del rail"
+                    ? nativeShortcutText("Quitar de la vista (⌘W). La conversación sigue VIVA en el rail — para cerrarla de verdad, la ✕ del rail")
                     : tab.kind === "browser"
-                      ? "Cerrar el navegador (⌘W)"
-                      : "Cerrar el archivo (⌘W)"
+                      ? nativeShortcutText("Cerrar el navegador (⌘W)")
+                      : nativeShortcutText("Cerrar el archivo (⌘W)")
                 }
                 onClick={(e) => {
                   e.stopPropagation();
@@ -577,7 +578,7 @@ export default function Tiling() {
       {!root && (
         <div className="center-empty" onClick={() => void actions.newTerminal()}>
           <Logo size={64} />
-          <span>⌘J · terminal &nbsp;·&nbsp; ⌘⌥J · agente</span>
+          <span>{nativeShortcutText("⌘J · terminal · ⌘⌥J · agente")}</span>
         </div>
       )}
 

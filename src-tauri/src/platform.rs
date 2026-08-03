@@ -44,10 +44,7 @@ pub fn platform_capabilities() -> PlatformCapabilities {
         PlatformCapabilities {
             os: "windows",
             browser_host: FeatureCapability::new(true, None),
-            voice_capture: FeatureCapability::new(
-                false,
-                Some("la captura WASAPI se implementará en la Fase 6"),
-            ),
+            voice_capture: FeatureCapability::new(true, None),
             window_capture: FeatureCapability::new(true, None),
         }
     }
@@ -98,6 +95,6 @@ mod tests {
         let capabilities = platform_capabilities();
         assert!(capabilities.browser_host.available);
         assert!(capabilities.window_capture.available);
-        assert!(!capabilities.voice_capture.available);
+        assert!(capabilities.voice_capture.available);
     }
 }

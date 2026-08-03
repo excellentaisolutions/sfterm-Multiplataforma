@@ -36,7 +36,7 @@ implementación, estado y criterios de aceptación vive en el
 | ID | Problema detectado en la base original | Corrección incorporada en esta adaptación | Evidencia/estado |
 |---|---|---|---|
 | WIN-001 | Los scripts frontend dependían de `rm`, `cp` y quoting POSIX, por lo que el build fallaba en Windows. | Scripts Node neutrales al shell y bootstrap PowerShell reproducible. | Corregido; `npm run validate:frontend` verde. |
-| WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 69/69 tests ejecutados en Windows y macOS. |
+| WIN-002 | `npm test` podía finalizar correctamente ejecutando cero tests por un glob no expandido. | Runner con descubrimiento explícito que falla si no encuentra tests. | Corregido; 74/74 tests ejecutados en Windows y macOS. |
 | WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido; `cargo check`, Clippy estricto y tests Rust verdes en ambos sistemas. |
 | WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Matriz 5.1/7 con Claude, Codex, Vim, DSR, resize, Unicode y contratos OSC verde en CI. |
 | WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Matriz ConPTY 5.1/7 verifica Ctrl+C, Ctrl+Break y supervivencia del shell. |
@@ -45,10 +45,12 @@ implementación, estado y criterios de aceptación vive en el
 | WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS; la Papelera Windows dependía de un proceso PowerShell. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente, etiquetas nativas, `ShellExecuteW` e `IFileOperation` recuperable sin shell. | Pruebas Rust de migración y guardas verdes; E2E real de Papelera superado. |
 | WIN-009 | Comandos para reanudar agentes y crear worktrees emitían sintaxis POSIX bajo PowerShell. | Generación por familia de shell, comillas literales seguras y propagación de stderr/exit code. | Tests de quoting PowerShell/POSIX verdes. |
 | WIN-010 | El navegador del agente dependía exclusivamente de WKWebView y no existía un host Windows seguro. | WebView2 child HWND mediante Wry, perfil separado y sin bridge IPC de Tauri, con callbacks nativos de diálogos, descargas, captura y PDF. | Gate completo verificado E2E contra WebView2 real; Fase 4 completada. |
+| WIN-011 | Los atajos confundían la intención primaria con Command y toda su representación era macOS. | Modificador `primary` (Command/Control), modificadores físicos conservados, migración quirúrgica y nombres nativos por plataforma. | Matching/captura unitarios y panel real WebView2 con `Ctrl+…` verificados. |
+| WIN-012 | Windows mostraba una segunda barra macOS y la voz era un stub sin captura. | Chrome HWND nativo para Snap/Alt+Space/DPI y captura WASAPI/CPAL a WAV 16 kHz con Whisper local opcional. | Estilos HWND, maximize/restore, micrófono real, degradación STT y TTS `es-ES` verificados. |
 | CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
 | CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
 | CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | Formato y Clippy estricto verdes en Windows y macOS. |
-| CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite 69/69. |
+| CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite frontend completa verde. |
 | CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows estable; cero fallos ni esperas indefinidas. |
 | CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | Contrato cubierto por test Rust; navegador y captura se anuncian disponibles en Windows tras completar WebView2. |
 | CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
@@ -64,6 +66,7 @@ npm run validate:frontend
 npm run test:shell:windows
 npm run test:process-tree:windows
 npm run test:ptyd-primitives:windows
+npm run test:voice-e2e:windows
 npm run check:rust
 npm run test:rust
 ```
@@ -270,7 +273,7 @@ src-tauri/src/
   pty.rs        PTYs reales (portable-pty), streaming binario por Channel
   engine/       MOTOR PROPIO: parser vte, grid, bloques OSC 133, frames binarios
   agent.rs      chat nativo: claude -p stream-json por turno + adjuntos
-  voice.rs      dictado: ffmpeg (mic) + whisper-cli (STT local)
+  voice.rs      dictado: AVFoundation/ffmpeg o WASAPI/CPAL + Whisper local
   gate.rs       puerta de agentes (archivos JSON) + screenshots
   config.rs     config.toml quirúrgico (toml_edit) + hot-reload
   fsx.rs        árbol lazy + watcher + índice ⌘P + visor solo-lectura
@@ -281,7 +284,7 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows base de `cargo test` descubre 103 tests: 96 superados y 7 E2E
+La suite Windows base de `cargo test` descubre 107 tests: 99 superados y 8 E2E
 ignorados de forma explícita. Los cinco E2E del daemon incluidos en
 `npm run test:ptyd-e2e:windows` se habilitan por separado y pasan sobre Named
 Pipe/ConPTY reales: TUI/replay tras reconexión, cierre sin huérfanos, aislamiento

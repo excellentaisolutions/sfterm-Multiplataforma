@@ -28,12 +28,30 @@ export default function Composer() {
   const panels = useStore((s) => s.panels);
   const [text, setText] = useState("");
   const [histIdx, setHistIdx] = useState(-1); // -1 = editando texto nuevo
+  const [voice, setVoice] = useState<ipc.VoiceStatus | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceNotice, setVoiceNotice] = useState("");
   const draft = useRef("");
+  const recordingRef = useRef(false);
   const ta = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (visible) requestAnimationFrame(() => ta.current?.focus());
+    if (visible) {
+      requestAnimationFrame(() => ta.current?.focus());
+      void ipc.voiceStatus().then(setVoice).catch((error) => {
+        setVoiceNotice(String(error));
+      });
+    }
   }, [visible]);
+
+  useEffect(() => {
+    recordingRef.current = recording;
+  }, [recording]);
+
+  useEffect(() => () => {
+    if (recordingRef.current) void ipc.voiceCancel();
+  }, []);
 
   // auto-grow del textarea (1 linea → hasta ~35% de la ventana)
   const grow = () => {
@@ -49,8 +67,44 @@ export default function Composer() {
   const target = focused != null ? panels[focused] : null;
 
   const close = () => {
+    if (recordingRef.current) void ipc.voiceCancel();
+    recordingRef.current = false;
+    setRecording(false);
     useStore.getState().setUI({ composer: false });
     if (focused != null) manager.focus(focused);
+  };
+
+  const voiceAvailable = voice
+    ? (voice.available ?? (voice.ffmpeg && voice.whisper && !!voice.model))
+    : false;
+
+  const toggleVoice = async () => {
+    if (voiceBusy) return;
+    if (!recording && !voiceAvailable) {
+      setVoiceNotice(voice?.reason ?? "El dictado local no está disponible");
+      return;
+    }
+    setVoiceBusy(true);
+    setVoiceNotice("");
+    try {
+      if (recording) {
+        const spoken = await ipc.voiceStop();
+        setText((current) => `${current}${current && !/\s$/.test(current) ? " " : ""}${spoken}`);
+        setRecording(false);
+        recordingRef.current = false;
+        requestAnimationFrame(() => ta.current?.focus());
+      } else {
+        await ipc.voiceStart();
+        setRecording(true);
+        recordingRef.current = true;
+      }
+    } catch (error) {
+      setRecording(false);
+      recordingRef.current = false;
+      setVoiceNotice(String(error));
+    } finally {
+      setVoiceBusy(false);
+    }
   };
 
   const send = () => {
@@ -73,6 +127,13 @@ export default function Composer() {
     e.stopPropagation(); // que los atajos del textarea no naveguen la app
     if (e.key === "Escape") {
       e.preventDefault();
+      if (recording) {
+        void ipc.voiceCancel();
+        setRecording(false);
+        recordingRef.current = false;
+        setVoiceNotice("Grabación cancelada");
+        return;
+      }
       close();
       return;
     }
@@ -109,8 +170,24 @@ export default function Composer() {
         <span className="composer-target">
           {target ? panelTitle(target) : "sin terminal enfocada"}
         </span>
+        <button
+          className={`composer-voice${recording ? " recording" : ""}`}
+          disabled={voiceBusy || (!recording && !voiceAvailable)}
+          onClick={() => void toggleVoice()}
+          title={
+            recording
+              ? "Detener y transcribir"
+              : voiceAvailable
+                ? `Dictado local (${voice?.backend ?? "audio nativo"})`
+                : voice?.reason ?? "Comprobando dictado local…"
+          }
+          aria-label={recording ? "Detener dictado" : "Iniciar dictado"}
+        >
+          {recording ? "■" : "●"}
+        </button>
         <span className="composer-hint">⏎ envía · ⇧⏎ salto · ↑↓ historial · esc cierra</span>
       </div>
+      {voiceNotice && <div className="composer-voice-notice">{voiceNotice}</div>}
       <textarea
         ref={ta}
         rows={1}

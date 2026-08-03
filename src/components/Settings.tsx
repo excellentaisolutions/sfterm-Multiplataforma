@@ -5,15 +5,17 @@ import * as actions from "../core/actions";
 import type { Theme } from "../core/types";
 import {
   KEYBIND_GROUPS,
-  FIXED_GESTURES,
+  fixedGestures,
   ACTION_LABEL,
   formatCombo,
   normalizeCombo,
   captureCombo,
   isSoftBlocked,
   setCapturingKeys,
+  nativeShortcutText,
   type KeybindAction,
 } from "../core/keybinds";
+import type { ShortcutPlatform } from "../core/keys";
 
 /** Panel de configuración 80/20 (⚙ del header / ⌘,). Vista delgada que ESCRIBE
  *  en config.toml (preservando comentarios); el hot-reload aplica el cambio.
@@ -96,7 +98,7 @@ export default function Settings() {
                 type="number" min={8} max={32} step={1} value={a.terminal_font_size}
                 onChange={(e) => set("terminal_font_size", Number(e.target.value))}
               />
-              <span className="note">⌘+ / ⌘− / ⌘0 en vivo</span>
+              <span className="note">{nativeShortcutText("⌘+ / ⌘− / ⌘0 en vivo")}</span>
             </div>
             <div className="appearance-row">
               <label>UI</label>
@@ -163,6 +165,7 @@ function ThemeCard(props: { name: string; theme: Theme; active: boolean; onPick:
  *  nuevo de vuelta via config.keys y esta pestaña simplemente re-renderiza. */
 function AtajosTab(props: { keys: Record<string, string> }) {
   const { keys } = props;
+  const platform = (useStore((s) => s.capabilities?.os) ?? "macos") as ShortcutPlatform;
   // accion en modo captura (esperando el proximo keydown). null = nada escuchando.
   const [listening, setListening] = useState<string | null>(null);
 
@@ -177,9 +180,9 @@ function AtajosTab(props: { keys: Record<string, string> }) {
 
   const collisionsOf = (action: string, combo: string): string[] => {
     if (!combo.trim()) return [];
-    const norm = normalizeCombo(combo);
+    const norm = normalizeCombo(combo, platform);
     return Object.entries(resolved)
-      .filter(([a, c]) => a !== action && c.trim() && normalizeCombo(c) === norm)
+      .filter(([a, c]) => a !== action && c.trim() && normalizeCombo(c, platform) === norm)
       .map(([a]) => ACTION_LABEL[a] ?? a);
   };
 
@@ -204,7 +207,7 @@ function AtajosTab(props: { keys: Record<string, string> }) {
         setListening(null);
         return;
       }
-      const combo = captureCombo(e);
+      const combo = captureCombo(e, platform);
       if (combo) save(listening, combo);
     };
     window.addEventListener("keydown", onKey, true);
@@ -212,7 +215,7 @@ function AtajosTab(props: { keys: Record<string, string> }) {
       setCapturingKeys(false);
       window.removeEventListener("keydown", onKey, true);
     };
-  }, [listening]);
+  }, [listening, platform]);
 
   return (
     <div className="atajos-tab">
@@ -223,7 +226,7 @@ function AtajosTab(props: { keys: Record<string, string> }) {
             const combo = resolved[item.action];
             const isListening = listening === item.action;
             const collisions = isListening ? [] : collisionsOf(item.action, combo);
-            const blocked = !isListening && isSoftBlocked(combo);
+            const blocked = !isListening && isSoftBlocked(combo, platform);
             return (
               <div key={item.action} className={`keybind-row ${collisions.length ? "clash" : ""}`}>
                 <span className="keybind-label">{item.label}</span>
@@ -232,7 +235,7 @@ function AtajosTab(props: { keys: Record<string, string> }) {
                 )}
                 {blocked && <span className="keybind-warn">⚠ este combo choca con la terminal</span>}
                 <kbd className={`keybind-kbd ${isListening ? "listening" : ""}`}>
-                  {isListening ? "pulsa el combo… Esc cancela" : formatCombo(combo)}
+                  {isListening ? "pulsa el combo… Esc cancela" : formatCombo(combo, platform)}
                 </kbd>
                 <div className="keybind-actions">
                   <button
@@ -266,7 +269,7 @@ function AtajosTab(props: { keys: Record<string, string> }) {
       ))}
 
       <div className="settings-section">Gestos fijos</div>
-      {FIXED_GESTURES.map(([k, label]) => (
+      {fixedGestures(platform).map(([k, label]) => (
         <div key={k} className="keybind-row fixed">
           <span className="keybind-label">{label}</span>
           <kbd className="keybind-kbd readonly">{k}</kbd>

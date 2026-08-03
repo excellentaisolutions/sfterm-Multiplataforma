@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStore, panelTitle } from "./core/store";
 import { manager } from "./core/term";
-import { compileBindings, matchBinding } from "./core/keys";
+import { compileBindings, isPrimaryEvent, matchBinding, type ShortcutPlatform } from "./core/keys";
 import * as actions from "./core/actions";
 import * as ipc from "./core/ipc";
 import * as tiling from "./core/tiling";
@@ -30,7 +31,7 @@ import { ACTION_LABEL, isCapturingKeys } from "./core/keybinds";
 /** Titulo VIVO del titlebar (18 jul, pedido de Daniel — muere el logo):
  *  lector abierto = el titulo de la conversacion espejada; taller = la
  *  terminal enfocada. */
-function TitlebarTitle() {
+function WindowTitle(props: { platform: ShortcutPlatform }) {
   const chatOpen = useStore((s) => s.ui.chat);
   const focused = useStore((s) => s.focused);
   const panels = useStore((s) => s.panels);
@@ -41,6 +42,10 @@ function TitlebarTitle() {
       : focused != null && panels[focused]
         ? panelTitle(panels[focused])
         : null) ?? "SFTerm";
+  useEffect(() => {
+    if (props.platform === "windows") void getCurrentWindow().setTitle(title);
+  }, [props.platform, title]);
+  if (props.platform === "windows") return null;
   return (
     <span className="brand" title={title}>
       {title}
@@ -69,6 +74,7 @@ export default function App() {
   const sideView = useStore((s) => s.sideView);
   const dragging = useStore((s) => s.dragging);
   const bindingsVersion = useStore((s) => s.bindingsVersion);
+  const platform = (useStore((s) => s.capabilities?.os) ?? "macos") as ShortcutPlatform;
   const bootedRef = useRef(false);
   const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
   // paneles del taller redimensionables (sash VSCode, persisten local).
@@ -110,16 +116,16 @@ export default function App() {
       Object.entries(cfg.keys ?? {}).filter(([k]) => known.has(k)),
     );
     const bindings = compileBindings({
-      chat: "cmd+l",
-      new_chat: "cmd+n",
-      search_project: "cmd+shift+f",
-      taller: "cmd+alt+t",
-      shortcuts: "cmd+alt+s",
+      chat: "primary+l",
+      new_chat: "primary+n",
+      search_project: "primary+shift+f",
+      taller: "primary+alt+t",
+      shortcuts: "primary+alt+s",
       next_tab: "shift+tab",
       next_terminal: "alt+tab",
-      toggle_theme: "cmd+shift+t",
+      toggle_theme: "primary+shift+t",
       ...userKeys,
-    });
+    }, platform);
 
     const dispatch = (action: string): boolean => {
       const st = useStore.getState();
@@ -275,7 +281,7 @@ export default function App() {
       // zoom LAYOUT-PROOF por caracter: en latam "+" es la tecla fisica
       // BracketRight y "-" es Slash, asi que los bindings por e.code no bastan.
       // Acepta cmd con +/=/-/0 sin importar shift ni layout.
-      if (e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (isPrimaryEvent(e, platform) && !e.altKey) {
         if (e.key === "+" || e.key === "=") {
           e.preventDefault(); e.stopPropagation();
           actions.zoomSmart(1);
@@ -298,12 +304,12 @@ export default function App() {
       if (isCapturingKeys()) return true;
       const a = matchBinding(e, bindings);
       if (a !== null && willConsume(a)) return false;
-      if (e.metaKey && !e.ctrlKey && !e.altKey && ["+", "=", "-", "0"].includes(e.key)) return false;
+      if (isPrimaryEvent(e, platform) && !e.altKey && ["+", "=", "-", "0"].includes(e.key)) return false;
       return true;
     });
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [bindingsVersion]);
+  }, [bindingsVersion, platform]);
 
   // ghost del drag
   useEffect(() => {
@@ -327,10 +333,11 @@ export default function App() {
 
   return (
     <div id="app">
+      {platform === "windows" && <WindowTitle platform={platform} />}
       {/* titlebar vivo (18 jul): el TITULO de la conversacion/terminal activa
           en vez del logo (pedido de Daniel). ⌃Tab taller · ⌘L superficie ·
           ⌘⌥S atajos */}
-      <div id="titlebar" data-tauri-drag-region>
+      {platform === "macos" && <div id="titlebar" data-tauri-drag-region>
         {/* toggle del arbol junto a los semaforos (estilo T3/Arc, 28 jul).
             Gesto de VISTA (permitido): mismo destino que ⌘B. Es un <button>,
             asi que el drag-region no lo captura y el drag de la ventana vive */}
@@ -348,7 +355,7 @@ export default function App() {
             )}
           </svg>
         </button>
-        <TitlebarTitle />
+        <WindowTitle platform={platform} />
         <button
           className="icon-btn gear"
           title="Configuración (⌘,)"
@@ -356,7 +363,7 @@ export default function App() {
         >
           ⚙
         </button>
-      </div>
+      </div>}
       <div id="main" style={{ "--rail-w": `${railPane.w}px` } as CSSProperties}>
         {railVisible && (
           <>

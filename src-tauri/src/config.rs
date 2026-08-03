@@ -259,7 +259,7 @@ const DEFAULT_CONFIG: &str = r##"# =============================================
 
 [general]
 # Version del schema (migraciones automaticas; no tocar)
-config_version = 7
+config_version = 8
 # Interfaz de la app (se RECUERDA la ultima; switch en Configuracion → General):
 #   "warp"  SOLO TERMINALES tipo Warp, agnostica de proveedor (claude, codex,
 #           aider, cualquier CLI). El chat existe solo como LECTOR (espejo) de
@@ -431,40 +431,40 @@ ansi = [
 
 # ---- Atajos (remapeables). Formato: cmd/alt/shift/ctrl + tecla ----
 [keys]
-new_terminal = "cmd+j"            # terminal RAPIDA: drawer inferior estilo VSCode (cualquier superficie)
-new_conversation = "cmd+alt+j"
-chat = "cmd+l"                    # chat <-> taller (superficie)
-new_chat = "cmd+n"                # conversacion nueva con agente (chat)
+new_terminal = "primary+j"            # terminal RAPIDA: drawer inferior estilo VSCode (cualquier superficie)
+new_conversation = "primary+alt+j"
+chat = "primary+l"                    # chat <-> taller (superficie)
+new_chat = "primary+n"                # conversacion nueva con agente (chat)
 taller = "ctrl+tab"               # cambiar de vista: chat <-> terminal de la conversacion (una mano)
-search_project = "cmd+shift+f"    # busqueda por contenido en el proyecto
-shortcuts = "cmd+alt+s"           # panel de atajos (S de shortcuts; "/" es shift+7 en latam)
-close_panel = "cmd+w"           # QUITA la pestaña de la vista; la conversacion sigue viva en el rail. Matarla de verdad = la ✕ del rail (29 jul: la pestaña dejo de matar)
-toggle_tree = "cmd+b"
-toggle_rail = "cmd+alt+b"
-focus_left = "cmd+alt+arrowleft"
-focus_right = "cmd+alt+arrowright"
-focus_up = "cmd+alt+arrowup"
-focus_down = "cmd+alt+arrowdown"
-dock_panel = "cmd+d"
-restore_last = "cmd+shift+d"
-zoom_in = "cmd+="                 # cmd + "+"/"=" tambien funciona en cualquier layout
-zoom_out = "cmd+-"
-zoom_reset = "cmd+0"
-select_all = "cmd+a"              # seleccionar todo el buffer de la terminal enfocada
-composer = "cmd+i"                # composer: input de texto real hacia la terminal enfocada
-search = "cmd+alt+f"             # buscar dentro de la terminal (se movio: ⌘F = fijar)
+search_project = "primary+shift+f"    # busqueda por contenido en el proyecto
+shortcuts = "primary+alt+s"           # panel de atajos (S de shortcuts; "/" es shift+7 en latam)
+close_panel = "primary+w"           # QUITA la pestaña de la vista; la conversacion sigue viva en el rail. Matarla de verdad = la ✕ del rail (29 jul: la pestaña dejo de matar)
+toggle_tree = "primary+b"
+toggle_rail = "primary+alt+b"
+focus_left = "primary+alt+arrowleft"
+focus_right = "primary+alt+arrowright"
+focus_up = "primary+alt+arrowup"
+focus_down = "primary+alt+arrowdown"
+dock_panel = "primary+d"
+restore_last = "primary+shift+d"
+zoom_in = "primary+="                 # primary + "+"/"=" tambien funciona en cualquier layout
+zoom_out = "primary+-"
+zoom_reset = "primary+0"
+select_all = "primary+a"              # seleccionar todo el buffer de la terminal enfocada
+composer = "primary+i"                # composer: input de texto real hacia la terminal enfocada
+search = "primary+alt+f"             # buscar dentro de la terminal
 next_terminal = "alt+tab"         # siguiente TERMINAL, en el orden del rail (el manual incluido)
 next_tab = "shift+tab"            # siguiente PESTAÑA del campo enfocado.
                                   # ⚠️ ⇧Tab tambien es del TUI de claude (ahi cicla los modos de
                                   # permiso), por eso solo se intercepta cuando el campo tiene 2+
                                   # pestañas: con una sola, la tecla se le deja al agente.
-file_finder = "cmd+p"
-palette = "cmd+k"
-settings = "cmd+,"
-reload_app = "cmd+r"              # relanzar la app (proceso nuevo → toma el build recien instalado)
-toggle_markdown = "cmd+shift+m"
-toggle_theme = "cmd+shift+t"       # alterna paleta papel ⇄ arbrain (claro ⇄ oscuro)
-expand_leaf = "cmd+shift+e"        # el campo enfocado se queda con TODA la pantalla; otra vez, vuelve exacto
+file_finder = "primary+p"
+palette = "primary+k"
+settings = "primary+,"
+reload_app = "primary+r"              # relanzar la app (proceso nuevo → toma el build recien instalado)
+toggle_markdown = "primary+shift+m"
+toggle_theme = "primary+shift+t"       # alterna paleta papel ⇄ arbrain (claro ⇄ oscuro)
+expand_leaf = "primary+shift+e"        # el campo enfocado se queda con TODA la pantalla; otra vez, vuelve exacto
 
 # ---- Presets agenticos: comandos auto-lanzados al abrir en frio ----
 # panes: un campo por comando. "" = shell libre. "agent" = general.agent_command
@@ -660,6 +660,58 @@ fn migrate_config(raw: &str) -> Option<String> {
         }
     }
 
+    if version < 8 {
+        // v7 -> v8: los defaults dejan de confundir la tecla Command fisica
+        // con la intencion primaria de la app. Solo migramos valores que
+        // coinciden EXACTAMENTE con defaults publicados; cualquier remapeo
+        // del usuario, incluidos cmd/meta/ctrl fisicos, se conserva.
+        if let Some(keys) = doc.get_mut("keys").and_then(|item| item.as_table_mut()) {
+            for (action, old, new) in [
+                ("new_terminal", "cmd+j", "primary+j"),
+                ("new_conversation", "cmd+alt+j", "primary+alt+j"),
+                ("chat", "cmd+l", "primary+l"),
+                ("new_chat", "cmd+n", "primary+n"),
+                ("search_project", "cmd+shift+f", "primary+shift+f"),
+                ("shortcuts", "cmd+alt+s", "primary+alt+s"),
+                ("close_panel", "cmd+w", "primary+w"),
+                ("toggle_tree", "cmd+b", "primary+b"),
+                ("toggle_rail", "cmd+alt+b", "primary+alt+b"),
+                ("focus_left", "cmd+alt+arrowleft", "primary+alt+arrowleft"),
+                (
+                    "focus_right",
+                    "cmd+alt+arrowright",
+                    "primary+alt+arrowright",
+                ),
+                ("focus_up", "cmd+alt+arrowup", "primary+alt+arrowup"),
+                ("focus_down", "cmd+alt+arrowdown", "primary+alt+arrowdown"),
+                ("dock_panel", "cmd+d", "primary+d"),
+                ("restore_last", "cmd+shift+d", "primary+shift+d"),
+                ("zoom_in", "cmd+=", "primary+="),
+                ("zoom_out", "cmd+-", "primary+-"),
+                ("zoom_reset", "cmd+0", "primary+0"),
+                ("select_all", "cmd+a", "primary+a"),
+                ("composer", "cmd+i", "primary+i"),
+                ("search", "cmd+alt+f", "primary+alt+f"),
+                ("file_finder", "cmd+p", "primary+p"),
+                ("palette", "cmd+k", "primary+k"),
+                ("settings", "cmd+,", "primary+,"),
+                ("reload_app", "cmd+r", "primary+r"),
+                ("toggle_markdown", "cmd+shift+m", "primary+shift+m"),
+                ("toggle_theme", "cmd+shift+t", "primary+shift+t"),
+                ("expand_leaf", "cmd+shift+e", "primary+shift+e"),
+            ] {
+                if keys.get(action).and_then(|value| value.as_str()) == Some(old) {
+                    keys[action] = toml_edit::value(new);
+                    changed = true;
+                }
+            }
+        }
+        if let Some(general) = doc.get_mut("general").and_then(|item| item.as_table_mut()) {
+            general["config_version"] = toml_edit::value(8);
+            changed = true;
+        }
+    }
+
     // backfill: llaves del default ausentes en el config del usuario
     // (temas nuevos, atajos nuevos, flags nuevos). Arrays (presets) NO se tocan.
     if merge_missing(doc.as_table_mut(), default.as_table()) {
@@ -830,8 +882,8 @@ panes = ["agent", ""]
         let keys = doc["keys"].as_table().unwrap();
         assert!(keys.get("split_1").is_none());
         assert!(keys.get("appearance").is_none());
-        assert_eq!(keys["settings"].as_str(), Some("cmd+,"));
-        assert_eq!(keys["zoom_in"].as_str(), Some("cmd+="));
+        assert_eq!(keys["settings"].as_str(), Some("primary+,"));
+        assert_eq!(keys["zoom_in"].as_str(), Some("primary+="));
         // temas nuevos backfilleados sin pisar el del usuario
         assert!(doc["themes"].get("graphite").is_some());
         assert!(doc["themes"].get("midnight").is_some());
@@ -842,7 +894,7 @@ panes = ["agent", ""]
         );
         // el theme elegido por el usuario NO se pisa por el nuevo default
         assert_eq!(doc["appearance"]["theme"].as_str(), Some("titanium"));
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(7));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(8));
         // v4: ⌥Tab muerto y ⌘F liberado para fijar (search → ⌘⌥F)
         assert!(keys.get("cycle_next").is_none());
         assert!(keys.get("cycle_prev").is_none());
@@ -884,7 +936,7 @@ cycle_pinned = "shift+tab"
             doc["keys"].get("cycle_pinned").is_none(),
             "el vistazo murio: la llave no puede sobrevivir a la cadena"
         );
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(7));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(8));
         // y hereda los ciclados nuevos por backfill del DEFAULT_CONFIG
         assert_eq!(doc["keys"]["next_terminal"].as_str(), Some("alt+tab"));
         assert_eq!(doc["keys"]["next_tab"].as_str(), Some("shift+tab"));
@@ -904,7 +956,7 @@ config_version = 6
 [keys]
 cycle_pinned = "alt+tab"
 pin_conversation = "cmd+f"
-composer = "cmd+i"
+composer = "cmd+shift+i"
 "#;
         let out = migrate_config(v6).expect("migra v6 -> v7");
         let doc: toml_edit::DocumentMut = out.parse().unwrap();
@@ -912,9 +964,9 @@ composer = "cmd+i"
         assert!(doc["keys"].get("pin_conversation").is_none());
         assert_eq!(doc["keys"]["next_terminal"].as_str(), Some("alt+tab"));
         assert_eq!(doc["keys"]["next_tab"].as_str(), Some("shift+tab"));
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(7));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(8));
         // lo que Daniel remapeo a mano NO se toca
-        assert_eq!(doc["keys"]["composer"].as_str(), Some("cmd+i"));
+        assert_eq!(doc["keys"]["composer"].as_str(), Some("cmd+shift+i"));
     }
 
     #[test]
@@ -933,13 +985,36 @@ next_terminal = "cmd+alt+n"
     }
 
     #[test]
+    fn migracion_v8_solo_convierte_defaults_a_primary() {
+        let v7 = r#"
+[general]
+config_version = 7
+
+[keys]
+new_terminal = "cmd+j"
+palette = "cmd+shift+k"
+select_all = "ctrl+a"
+"#;
+        let out = migrate_config(v7).expect("migra v7 -> v8");
+        let doc: toml_edit::DocumentMut = out.parse().unwrap();
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(8));
+        assert_eq!(doc["keys"]["new_terminal"].as_str(), Some("primary+j"));
+        assert_eq!(
+            doc["keys"]["palette"].as_str(),
+            Some("cmd+shift+k"),
+            "un Command físico personalizado se conserva"
+        );
+        assert_eq!(doc["keys"]["select_all"].as_str(), Some("ctrl+a"));
+    }
+
+    #[test]
     fn migracion_v6_app_mode() {
         // v5 sin app_mode: el backfill lo agrega como "warp" y la version sube
         let v5 = "[general]\nconfig_version = 5\n";
         let out = migrate_config(v5).expect("migra v5 -> v6");
         let doc: toml_edit::DocumentMut = out.parse().unwrap();
         assert_eq!(doc["general"]["app_mode"].as_str(), Some("warp"));
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(7));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(8));
         // usuario que ya eligio la interfaz completa: se respeta
         let full = "[general]\nconfig_version = 5\napp_mode = \"full\"\n";
         let out2 = migrate_config(full).expect("sube version");

@@ -11,6 +11,23 @@ export interface Binding {
   keyChar: string;
 }
 
+export type ShortcutPlatform = "macos" | "windows";
+
+export interface KeyEventLike {
+  code: string;
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+}
+
+export function isPrimaryEvent(e: KeyEventLike, platform: ShortcutPlatform): boolean {
+  return platform === "windows"
+    ? e.ctrlKey && !e.metaKey
+    : e.metaKey && !e.ctrlKey;
+}
+
 /** "cmd+alt+j" -> KeyboardEvent.code (KeyJ). Usamos e.code porque en macOS
  *  alt+letra produce caracteres especiales en e.key. */
 function codeFor(key: string): string {
@@ -43,18 +60,25 @@ function codeFor(key: string): string {
   return special[k] ?? k;
 }
 
-export function compileBindings(keys: Record<string, string>): Binding[] {
+export function compileBindings(
+  keys: Record<string, string>,
+  platform: ShortcutPlatform = "macos",
+): Binding[] {
   const out: Binding[] = [];
   for (const [action, combo] of Object.entries(keys ?? {})) {
     if (typeof combo !== "string" || !combo.trim()) continue;
     const parts = combo.toLowerCase().split("+").map((p) => p.trim());
     const key = parts[parts.length - 1];
+    const primary = parts.includes("primary");
     out.push({
       action,
-      meta: parts.includes("cmd") || parts.includes("meta"),
+      meta: parts.includes("cmd") || parts.includes("meta") || (primary && platform === "macos"),
       alt: parts.includes("alt") || parts.includes("opt") || parts.includes("option"),
       shift: parts.includes("shift"),
-      ctrl: parts.includes("ctrl") || parts.includes("control"),
+      ctrl:
+        parts.includes("ctrl") ||
+        parts.includes("control") ||
+        (primary && platform === "windows"),
       code: codeFor(key),
       keyChar: key === "plus" ? "+" : key,
     });
@@ -63,7 +87,7 @@ export function compileBindings(keys: Record<string, string>): Binding[] {
 }
 
 export function matchBinding(
-  e: KeyboardEvent,
+  e: KeyEventLike,
   bindings: Binding[],
 ): string | null {
   for (const b of bindings) {
