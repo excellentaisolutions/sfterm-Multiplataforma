@@ -440,7 +440,7 @@ function HistRail({ query, prefs }: { query: string; prefs: H.HistPrefs }) {
             <Collapse closed={closed}>
               {sec.cards.map((c) => (
                 <div
-                  key={c.sid}
+                  key={`${c.provider}:${c.sid}`}
                   className="chat-convitem hist"
                   title={`${c.cwd}\nLeer la conversación (continuar desde el lector)`}
                   onClick={() => actions.openHistMirror(c)}
@@ -461,7 +461,9 @@ function HistRail({ query, prefs }: { query: string; prefs: H.HistPrefs }) {
                     </button>
                   </div>
                   <div className="chat-convrow sub">
-                    <span className="chat-convsnip">{pathBasename(c.cwd)}</span>
+                    <span className="chat-convsnip">
+                      {c.provider}{c.model ? ` · ${c.model}` : ""} · {pathBasename(c.cwd)}
+                    </span>
                   </div>
                 </div>
               ))}

@@ -204,6 +204,8 @@ export function openHistMirror(card: H.ConvCard) {
       cwd: card.cwd,
       ...(card.title ? { title: card.title } : {}),
       ...(card.configDir ? { cfg: card.configDir } : {}),
+      provider: card.provider,
+      ...(card.model ? { model: card.model } : {}),
     },
   });
   showChat(true);
@@ -217,18 +219,24 @@ export function openHistMirror(card: H.ConvCard) {
 export async function continueHist(card: H.ConvCard, text?: string) {
   const cfg = st().config!;
   const base = cfg.general.agent_command ?? "claude --dangerously-skip-permissions";
-  const command = P.providerOf(card).resumeCommand(card, base);
+  const provider = P.providerOf(card);
+  const initialText = text?.trim();
+  const command = provider.resumeCommand(
+    card,
+    base,
+    provider.promptInCommand ? initialText : undefined,
+  );
   const id = await spawnPanel({
     cwd: card.cwd || undefined,
     command,
     target: { at: "auto" },
   });
-  if (text?.trim()) {
-    const t = text.trim();
+  if (initialText && !provider.promptInCommand) {
+    const t = initialText;
     void (async () => {
       // esperar el PROMPT VACIO del TUI resumido antes de entregar (25s cap;
       // sin atPrompt del proveedor, sendWhenReady se defiende solo)
-      const listo = P.providerOf(card).atPrompt;
+      const listo = provider.atPrompt;
       if (listo) {
         for (let i = 0; i < 50; i++) {
           await new Promise((r) => setTimeout(r, 500));

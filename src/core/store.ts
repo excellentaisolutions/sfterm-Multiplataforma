@@ -42,6 +42,8 @@ interface UIState {
     title?: string;
     cwd?: string;
     cfg?: string;
+    provider?: "claude" | "codex" | "kimi";
+    model?: string;
   } | null;
   /** PEEK ⌥Tab (modo Terminales): vistazo temporal a la conversacion de la
    *  terminal enfocada — overlay sobre el taller, no una superficie. */

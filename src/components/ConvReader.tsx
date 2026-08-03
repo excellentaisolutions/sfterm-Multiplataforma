@@ -22,7 +22,7 @@ import { manager } from "../core/term";
 import { leafOfTerm } from "../core/tiling";
 import { msgMarkdown, modelPretty, type ChatMsg, type MsgImage, type ToolPart } from "../core/msgs";
 import { renderMarkdown, handleDocClick } from "../core/md";
-import { parseTranscript, readTail, type ParsedTranscript } from "../core/transcript";
+import { parseProviderTranscript, readTail, type ParsedTranscript } from "../core/transcript";
 import { profileForScreen, screenGhost } from "../core/screen";
 import { readerSpeech } from "../core/reader-speech";
 import { parseDroppedPaths } from "../core/types";
@@ -840,6 +840,8 @@ export default function ConvReader() {
   // habria retirado el lector), asi que el PTY siempre es el destino.
   const live = !!panel && (screen || claude);
   const path = mirror?.path;
+  const provider = mirror?.provider ?? "claude";
+  const mirrorModel = mirror?.model;
   const termId = mirror?.termId;
   const sid = mirror?.sid;
   const [screenText, setScreenText] = useState<string | null>(null);
@@ -1014,14 +1016,19 @@ export default function ConvReader() {
     setData(null);
     const poll = () =>
       readTail(path)
-        .then((raw) => {
+        .then((tail) => {
           if (dead) return;
-          const p = parseTranscript(raw);
+          const p = parseProviderTranscript(provider, tail.content, tail.truncated);
+          if (!p.model && mirrorModel) p.model = mirrorModel;
           setData(p);
           // el titlebar vive del titulo del espejo: sembrarlo del transcript
           const cur = useStore.getState().ui.chatMirror;
-          if (p.title && cur && cur.path === path && cur.title !== p.title) {
-            useStore.getState().setUI({ chatMirror: { ...cur, title: p.title } });
+          if (cur && cur.path === path) {
+            const title = p.title ?? cur.title;
+            const model = p.model ?? cur.model;
+            if (title !== cur.title || model !== cur.model) {
+              useStore.getState().setUI({ chatMirror: { ...cur, title, model } });
+            }
           }
         })
         .catch((e) => {
@@ -1039,7 +1046,7 @@ export default function ConvReader() {
       dead = true;
       clearInterval(t);
     };
-  }, [open, path]);
+  }, [open, path, provider, mirrorModel]);
 
   // ── EL ADELANTO (28 jul 2026) ────────────────────────────────────────────
   //
@@ -1436,12 +1443,13 @@ export default function ConvReader() {
     if (!sid || !path) return;
     await actions.continueHist(
       {
-        provider: "claude",
+        provider,
         sid,
         path,
         configDir: mirror.cfg ?? null,
         cwd: mirror.cwd ?? "",
         title: mirror.title ?? null,
+        model: data?.model ?? mirror.model ?? null,
         mtimeMs: 0,
       },
       text,

@@ -31,10 +31,38 @@ export function claudeResumeCommand(
   configDir?: string | null,
   prompt?: string,
   family: ShellFamily = runtimeShellFamily(),
+  model?: string | null,
 ): string {
   const env = shellEnvPrefix("CLAUDE_CONFIG_DIR", configDir, family);
+  const selected = model ? ` --model ${shellQuote(model, family)}` : "";
   const message = prompt === undefined ? "" : ` ${shellQuote(prompt, family)}`;
-  return `${env}${agentCommand} --resume ${sid}${message}`;
+  return `${env}${agentCommand} --resume ${sid}${selected}${message}`;
+}
+
+export function codexResumeCommand(
+  sid: string,
+  cwd?: string | null,
+  model?: string | null,
+  configDir?: string | null,
+  prompt?: string,
+  family: ShellFamily = runtimeShellFamily(),
+): string {
+  const env = shellEnvPrefix("CODEX_HOME", configDir, family);
+  const selected = model ? ` --model ${shellQuote(model, family)}` : "";
+  const dir = cwd ? ` --cd ${shellQuote(cwd, family)}` : "";
+  const message = prompt === undefined ? "" : ` ${shellQuote(prompt, family)}`;
+  return `${env}codex resume ${shellQuote(sid, family)}${selected}${dir}${message}`;
+}
+
+export function kimiResumeCommand(
+  sid: string,
+  model?: string | null,
+  configDir?: string | null,
+  family: ShellFamily = runtimeShellFamily(),
+): string {
+  const env = shellEnvPrefix("KIMI_CODE_HOME", configDir, family);
+  const selected = model ? ` --model ${shellQuote(model, family)}` : "";
+  return `${env}kimi --session ${shellQuote(sid, family)}${selected}`;
 }
 
 export function quoteShellPaths(paths: string[], family: ShellFamily = runtimeShellFamily()): string {

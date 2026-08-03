@@ -6,7 +6,7 @@
 import { pathBasename } from "./path-utils.ts";
 
 export interface ConvCard {
-  provider: string;
+  provider: "claude" | "codex" | "kimi";
   sid: string;
   /** transcript en disco (la verdad; el lector lo espeja) */
   path: string;
@@ -14,6 +14,8 @@ export interface ConvCard {
   configDir: string | null;
   cwd: string;
   title: string | null;
+  /** Modelo usado por el ultimo turno; es el default al reanudar. */
+  model: string | null;
   mtimeMs: number;
 }
 
@@ -60,7 +62,7 @@ export function matches(card: ConvCard, query: string): boolean {
   const q = fold(query.trim());
   if (!q) return true;
   const proyecto = pathBasename(card.cwd);
-  return fold(`${card.title ?? ""} ${proyecto}`).includes(q);
+  return fold(`${card.title ?? ""} ${proyecto} ${card.provider} ${card.model ?? ""}`).includes(q);
 }
 
 /** Preferencias de la vitrina (el popover de filtros, estilo Claude Desktop). */

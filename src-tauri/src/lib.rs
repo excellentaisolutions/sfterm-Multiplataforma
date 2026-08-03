@@ -24,6 +24,7 @@ mod fsx;
 mod gate;
 mod gitmirror;
 mod hist;
+mod history;
 mod metrics;
 mod platform;
 mod pty;
@@ -102,6 +103,9 @@ pub fn run() {
             pty::pty_detach_all,
             pty::term_session,
             hist::sessions_index,
+            history::codex_sessions_index,
+            history::kimi_sessions_index,
+            history::transcript_tail,
             config::config_get,
             config::config_set,
             config::config_path,

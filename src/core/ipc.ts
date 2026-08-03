@@ -109,12 +109,33 @@ export interface SessionCardIpc {
   title: string | null;
   mtime_ms: number;
   size: number;
+  model?: string | null;
 }
 export const sessionsIndex = (days?: number, limit?: number) =>
   invoke<SessionCardIpc[]>("sessions_index", {
     days: days ?? null,
     limit: limit ?? null,
   });
+
+export const codexSessionsIndex = (days?: number, limit?: number) =>
+  invoke<SessionCardIpc[]>("codex_sessions_index", {
+    days: days ?? null,
+    limit: limit ?? null,
+  });
+
+export const kimiSessionsIndex = (days?: number, limit?: number) =>
+  invoke<SessionCardIpc[]>("kimi_sessions_index", {
+    days: days ?? null,
+    limit: limit ?? null,
+  });
+
+export interface TranscriptTailIpc {
+  content: string;
+  truncated: boolean;
+}
+
+export const transcriptTail = (path: string, maxBytes = 4_000_000) =>
+  invoke<TranscriptTailIpc>("transcript_tail", { path, maxBytes });
 
 export const ptyWrite = (id: number, data: string) =>
   invoke<void>("pty_write", { id, data });

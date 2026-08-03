@@ -36,6 +36,8 @@ pub struct SessionCard {
     pub cwd: String,
     /// aiTitle del tail (lo que Claude Code resume) o el primer prompt real.
     pub title: Option<String>,
+    /// Modelo del ultimo mensaje assistant; se reutiliza al reanudar.
+    pub model: Option<String>,
     pub mtime_ms: u64,
     pub size: u64,
 }
@@ -216,6 +218,23 @@ fn build_card(
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
         .or(first_prompt);
+    let mut model = None;
+    if let Some(tail) = read_tail(path, 512 * 1024) {
+        for line in tail.lines() {
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
+            if v.get("type").and_then(|x| x.as_str()) == Some("assistant") {
+                if let Some(value) = v
+                    .get("message")
+                    .and_then(|m| m.get("model"))
+                    .and_then(|x| x.as_str())
+                {
+                    model = Some(value.to_string());
+                }
+            }
+        }
+    }
     let sid = path.file_stem()?.to_string_lossy().to_string();
     Some(SessionCard {
         sid,
@@ -223,6 +242,7 @@ fn build_card(
         config_dir,
         cwd: cwd.unwrap_or_default(),
         title,
+        model,
         mtime_ms,
         size,
     })
@@ -233,6 +253,22 @@ fn read_head(path: &Path, cap: usize) -> Option<String> {
     let f = std::fs::File::open(path).ok()?;
     let mut buf = Vec::with_capacity(cap.min(1 << 20));
     f.take(cap as u64).read_to_end(&mut buf).ok()?;
+    Some(String::from_utf8_lossy(&buf).into_owned())
+}
+
+fn read_tail(path: &Path, cap: usize) -> Option<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(path).ok()?;
+    let len = f.metadata().ok()?.len();
+    let start = len.saturating_sub(cap as u64);
+    f.seek(SeekFrom::Start(start)).ok()?;
+    let mut buf = Vec::with_capacity((len - start) as usize);
+    f.read_to_end(&mut buf).ok()?;
+    if start > 0 {
+        if let Some(nl) = buf.iter().position(|b| *b == b'\n') {
+            buf.drain(..=nl);
+        }
+    }
     Some(String::from_utf8_lossy(&buf).into_owned())
 }
 

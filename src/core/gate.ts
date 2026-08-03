@@ -176,6 +176,7 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
           config_dir: c.configDir,
           mtime_ms: c.mtimeMs,
           provider: c.provider,
+          model: c.model,
         }));
     }
 

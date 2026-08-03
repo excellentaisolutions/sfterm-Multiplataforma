@@ -18,6 +18,7 @@ const card = (over: Partial<ConvCard>): ConvCard => ({
   configDir: null,
   cwd: "/Users/d/Developer/business-os",
   title: "Arreglar el scroll",
+  model: null,
   mtimeMs: 0,
   ...over,
 });

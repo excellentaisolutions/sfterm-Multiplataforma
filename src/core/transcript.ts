@@ -109,26 +109,12 @@ function splitAttachments(text: string): { text: string; attachments?: string[] 
  *  screenshot al final se tragaba el tail entero y el lector mostraba "esta
  *  sesión aún no tiene mensajes legibles" — el espejo en blanco por una foto.
  *
- *  Por eso el blob se STRIPEA EN EL SHELL, antes de cruzar el IPC: la ventana
- *  sube a 4MB (mas conversacion visible) y lo que viaja sigue siendo chico.
+ *  El backend Rust lee los ultimos 4 MB directamente, sin depender de `tail`,
+ *  Perl ni de la familia del shell. Tambien vacia blobs base64 antes del IPC.
  *  El bloque `image` sobrevive con `data:""`, que es justo lo que necesita el
  *  frontend para saber que ahi hubo una imagen y pedirla bajo demanda
- *  (ipc.transcriptImage). Delimitadores `!` en el s/// para no escapar las
- *  barras del alfabeto base64. */
-const STRIP_B64 = `perl -pe 's!"data":"[A-Za-z0-9+/=]{200,}"!"data":""!g'`;
-/** Centinela: `shell_capture` se traga stderr y devuelve Ok("") aunque el
- *  `tail` haya fallado, asi que un archivo INEXISTENTE llegaba como un
- *  transcript vacio y el lector lo pintaba como "sesion sin mensajes
- *  legibles". Preguntar por el archivo ANTES es la diferencia entre un espejo
- *  honesto y uno que miente en blanco (27 jul 2026). */
-const NO_FILE = "__SFTERM_SIN_ARCHIVO__";
-export const readTail = async (path: string) => {
-  const out = await ipc.shellCapture(
-    `[ -f "${path}" ] || { echo '${NO_FILE}'; exit 0; }; tail -c 4000000 "${path}" | ${STRIP_B64}`,
-  );
-  if (out.startsWith(NO_FILE)) throw new Error(`no existe el transcript: ${path}`);
-  return out;
-};
+ *  (ipc.transcriptImage). */
+export const readTail = (path: string) => ipc.transcriptTail(path);
 
 /** Imagenes de UNA linea del jsonl, en ORDEN DE DOCUMENTO, con el hueco al que
  *  pertenecen: `slot` null = pegada por Daniel en el mensaje; `slot` = id de un
@@ -411,4 +397,154 @@ export function parseTranscript(raw: string): ParsedTranscript {
       endsAsk,
     },
   };
+}
+
+function jsonLines(raw: string): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const value = JSON.parse(line) as unknown;
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        out.push(value as Record<string, unknown>);
+      }
+    } catch {
+      // Una cola puede empezar a mitad de una linea; el backend ya informa el
+      // recorte de forma separada.
+    }
+  }
+  return out;
+}
+
+function stringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" ? field : undefined;
+}
+
+function textParts(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((part) =>
+      stringField(part, "text") ?? stringField(part, "content") ?? "",
+    )
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Rollout JSONL de Codex: usa los eventos de UI para evitar duplicar los
+ * `response_item` internos que tambien se guardan para restaurar contexto. */
+export function parseCodexTranscript(raw: string, truncated = false): ParsedTranscript {
+  const msgs: ChatMsg[] = [];
+  const tools = new Map<string, Extract<Part, { type: "tool" }>>();
+  let id = 2_000_000;
+  let sessionId: string | undefined;
+  let cwd: string | undefined;
+  let model: string | undefined;
+  let effort: string | undefined;
+  let working = false;
+  let lastEventAt: number | undefined;
+  for (const ev of jsonLines(raw)) {
+    const payload = ev.payload as Record<string, unknown> | undefined;
+    const time = typeof ev.timestamp === "string" ? Date.parse(ev.timestamp) : NaN;
+    if (!Number.isNaN(time)) lastEventAt = time;
+    if (ev.type === "session_meta" && payload) {
+      sessionId = stringField(payload, "session_id") ?? stringField(payload, "id") ?? sessionId;
+      cwd = stringField(payload, "cwd") ?? cwd;
+    } else if (ev.type === "turn_context" && payload) {
+      cwd = stringField(payload, "cwd") ?? cwd;
+      model = stringField(payload, "model") ?? model;
+      effort = stringField(payload, "effort") ?? effort;
+    } else if (ev.type === "event_msg" && payload) {
+      const kind = payload.type;
+      if (kind === "task_started") working = true;
+      if (kind === "task_complete" || kind === "task_completed" || kind === "turn_complete") working = false;
+      if (kind === "user_message") {
+        const text = stringField(payload, "message")?.trim();
+        if (text) msgs.push({ id: id++, role: "user", text });
+        working = true;
+      } else if (kind === "agent_message") {
+        const text = stringField(payload, "message")?.trim();
+        if (text) msgs.push({ id: id++, role: "assistant", text, parts: [{ type: "text", text }] });
+      }
+    } else if (ev.type === "response_item" && payload) {
+      const kind = payload.type;
+      if ((kind === "function_call" || kind === "custom_tool_call") && typeof payload.name === "string") {
+        const toolId = stringField(payload, "call_id") ?? stringField(payload, "id") ?? `codex-${id}`;
+        const rawInput = stringField(payload, "arguments") ?? stringField(payload, "input") ?? "";
+        let input: Record<string, unknown> = {};
+        try { input = JSON.parse(rawInput) as Record<string, unknown>; } catch { input = { input: rawInput }; }
+        const part: Extract<Part, { type: "tool" }> = {
+          type: "tool", toolId, name: payload.name, summary: toolSummary(payload.name, input),
+          input: rawInput || undefined,
+        };
+        tools.set(toolId, part);
+        let target = msgs[msgs.length - 1];
+        if (!target || target.role !== "assistant") {
+          target = { id: id++, role: "assistant", text: "", parts: [] };
+          msgs.push(target);
+        }
+        (target.parts ??= []).push(part);
+      } else if (kind === "function_call_output" || kind === "custom_tool_call_output") {
+        const toolId = stringField(payload, "call_id");
+        const tool = toolId ? tools.get(toolId) : undefined;
+        if (tool) tool.output = textParts(payload.output).slice(0, 4000);
+      }
+    }
+  }
+  const shown = msgs.length > MAX_MSGS ? msgs.slice(-MAX_MSGS) : msgs;
+  return {
+    msgs: shown, model, effort, sessionId, cwd,
+    truncated: truncated || shown.length < msgs.length,
+    turn: { state: working ? "working" : "done", lastEventAt, outputTokens: 0, endsAsk: false },
+  };
+}
+
+/** Wire journal de Kimi Code. El formato oficial persiste los mensajes como
+ * `context.append_message`; el resto de records son estado y telemetria. */
+export function parseKimiTranscript(raw: string, truncated = false): ParsedTranscript {
+  const msgs: ChatMsg[] = [];
+  let id = 3_000_000;
+  let model: string | undefined;
+  let lastEventAt: number | undefined;
+  for (const ev of jsonLines(raw)) {
+    if (typeof ev.time === "number") lastEventAt = ev.time;
+    if (ev.type === "llm.request") {
+      model = stringField(ev, "modelAlias") ?? stringField(ev, "model") ?? model;
+      continue;
+    }
+    if (ev.type === "usage.record") {
+      model = stringField(ev, "model") ?? model;
+      continue;
+    }
+    if (ev.type !== "context.append_message") continue;
+    const message = ev.message as Record<string, unknown> | undefined;
+    if (!message) continue;
+    const role = message.role;
+    const text = textParts(message.content).trim();
+    if (!text || (role !== "user" && role !== "assistant")) continue;
+    msgs.push(role === "assistant"
+      ? { id: id++, role, text, parts: [{ type: "text", text }] }
+      : { id: id++, role, text });
+  }
+  const shown = msgs.length > MAX_MSGS ? msgs.slice(-MAX_MSGS) : msgs;
+  return {
+    msgs: shown, model, truncated: truncated || shown.length < msgs.length,
+    turn: { state: "done", lastEventAt, outputTokens: 0, endsAsk: false },
+  };
+}
+
+export function parseProviderTranscript(
+  provider: "claude" | "codex" | "kimi",
+  raw: string,
+  truncated = false,
+): ParsedTranscript {
+  const parsed = provider === "codex"
+    ? parseCodexTranscript(raw, truncated)
+    : provider === "kimi"
+      ? parseKimiTranscript(raw, truncated)
+      : parseTranscript(raw);
+  if (truncated) parsed.truncated = true;
+  return parsed;
 }
