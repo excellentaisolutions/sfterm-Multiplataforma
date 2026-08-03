@@ -31,6 +31,12 @@ $options = Get-PSReadLineOption
 if ($null -ne $options.PSObject.Properties['PredictionSource'] -and $options.PredictionSource -ne 'None') {
     throw "Predictive command text remains enabled: $($options.PredictionSource)"
 }
+if ($options.HistorySaveStyle -ne 'SaveNothing') {
+    throw "PowerShell history is not isolated: $($options.HistorySaveStyle)"
+}
+if ($options.HistorySavePath -notlike '*sfterm-psreadline-*.history') {
+    throw "Unexpected SFTerm history path: $($options.HistorySavePath)"
+}
 $handler = $options.AddToHistoryHandler
 $null = $handler.Invoke('Write-Output hello')
 $null = prompt

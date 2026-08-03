@@ -56,6 +56,12 @@ try {
     $sftermOptions = Get-PSReadLineOption
     $global:__SFTermPreviousHistoryHandler = $sftermOptions.AddToHistoryHandler
 
+    # Isolate this terminal from PowerShell's persistent global history. The
+    # file is intentionally never written; PSReadLine still keeps commands in
+    # memory so Up/Down work for the lifetime of this terminal.
+    $sftermSessionHistory = Join-Path ([System.IO.Path]::GetTempPath()) "sfterm-psreadline-$PID.history"
+    Set-PSReadLineOption -HistorySavePath $sftermSessionHistory -HistorySaveStyle SaveNothing
+
     # A fresh terminal must look fresh. PSReadLine can paint the last global
     # history entry as dim predictive text even with an empty input buffer;
     # visually that looks like WinTerm injected a command. Disable only the
@@ -67,8 +73,8 @@ try {
         # Older PSReadLine versions have no prediction feature/property.
     }
 
-    # PSReadLine may already have loaded the global history before the option
-    # above changes. Clear only its in-memory copy for this new child shell:
+    # PSReadLine may already have loaded the global history before the options
+    # above change. Clear only its in-memory copy for this new child shell:
     # the history file is never deleted or rewritten, and commands entered
     # from now on remain available during the current terminal session.
     try {
