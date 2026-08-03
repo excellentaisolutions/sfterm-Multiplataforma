@@ -27,12 +27,14 @@ foreach ($installer in $installers) {
 
 $artifactDir = Join-Path (Get-Location) "artifacts"
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
-$hashes = foreach ($file in $installers + @(
-    Get-Item -LiteralPath "$($nsis[0].FullName).sig",
+$signatureFiles = @(
+    Get-Item -LiteralPath "$($nsis[0].FullName).sig"
     Get-Item -LiteralPath "$($msi[0].FullName).sig"
-)) {
+)
+$hashes = foreach ($file in $installers + $signatureFiles) {
     $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName
     "$($hash.Hash.ToLowerInvariant())  $($file.Name)"
 }
-$hashes | Set-Content -LiteralPath (Join-Path $artifactDir "SHA256SUMS") -Encoding utf8NoBOM
+$manifestPath = Join-Path $artifactDir "SHA256SUMS"
+[IO.File]::WriteAllLines($manifestPath, [string[]]$hashes, (New-Object Text.UTF8Encoding($false)))
 Write-Host "release artifacts: Authenticode, updater signatures and SHA-256 manifest OK"

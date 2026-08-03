@@ -1,7 +1,26 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 
 const json = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+const trackedFiles = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+  .split("\0")
+  .filter(Boolean);
+const forbiddenSigningFiles = trackedFiles.filter((file) =>
+  /(?:^|\/)(?:\.sfterm-signing)(?:\/|$)|\.(?:pfx|p12|cer|key|key\.pub)$|[^/]*-password\.txt$/i.test(file));
+assert.deepEqual(forbiddenSigningFiles, [], `Material de firma rastreado por Git: ${forbiddenSigningFiles.join(", ")}`);
+const privateKeyMarker = ["BEGIN", "PRIVATE", "KEY"].join(" ");
+const certificateMarker = ["BEGIN", "CERTIFICATE"].join(" ");
+const tauriSecretMarker = ["minisign", "encrypted", "secret", "key"].join(" ");
+for (const file of trackedFiles) {
+  const content = fs.readFileSync(file);
+  if (content.includes(0)) continue;
+  const text = content.toString("utf8");
+  assert.doesNotMatch(text, /[A-Za-z]:\\Users\\[^\\\s"'`]+/i, `Ruta personal publicada en ${file}`);
+  assert.equal(text.includes(privateKeyMarker), false, `Clave privada publicada en ${file}`);
+  assert.equal(text.includes(certificateMarker), false, `Certificado publicado en ${file}`);
+  assert.equal(text.toLowerCase().includes(tauriSecretMarker), false, `Clave Tauri publicada en ${file}`);
+}
 const base = json("src-tauri/tauri.conf.json");
 const windows = json("src-tauri/tauri.windows.conf.json");
 const cargo = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
@@ -16,6 +35,8 @@ assert.equal(windows.bundle.windows.webviewInstallMode.type, "embedBootstrapper"
 assert.match(cargo, /^tauri-plugin-updater\s*=\s*"2\./m);
 assert.match(workflow, /TAURI_SIGNING_PRIVATE_KEY/);
 assert.match(workflow, /WINDOWS_CERTIFICATE/);
+assert.match(workflow, /certificate\.Subject -eq \$certificate\.Issuer/);
+assert.match(workflow, /Cert:\\CurrentUser\\TrustedPublisher/);
 assert.match(workflow, /updaterJsonPreferNsis:\s*true/);
 assert.match(workflow, /releaseDraft:\s*true/);
 assert.match(unsignedWorkflow, /workflow_dispatch:/);

@@ -48,6 +48,13 @@ jobs:
           Remove-Item -LiteralPath $pfx -Force
           $certificate = $imported | Where-Object HasPrivateKey | Select-Object -First 1
           if (-not $certificate) { throw "PFX contains no certificate with a private key" }
+          if ($certificate.Subject -eq $certificate.Issuer) {
+            $cer = Join-Path $env:RUNNER_TEMP "sfterm-codesign.cer"
+            Export-Certificate -Cert $certificate -FilePath $cer -Type CERT | Out-Null
+            Import-Certificate -FilePath $cer -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+            Import-Certificate -FilePath $cer -CertStoreLocation Cert:\CurrentUser\TrustedPublisher | Out-Null
+            Remove-Item -LiteralPath $cer -Force
+          }
           "WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" >> $env:GITHUB_ENV
 
       - name: Prepare signed updater configuration

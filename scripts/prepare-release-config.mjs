@@ -19,6 +19,12 @@ if (certificateThumbprint && !/^[A-F0-9]{40,64}$/.test(certificateThumbprint)) {
 const endpoint = process.env.SFTERM_UPDATER_ENDPOINT?.trim()
   || "https://github.com/excellentaisolutions/sfterm-Multiplataforma/releases/latest/download/latest.json";
 if (!endpoint.startsWith("https://")) throw new Error("El endpoint del updater debe usar HTTPS");
+const timestampSetting = process.env.SFTERM_AUTHENTICODE_TIMESTAMP_URL?.trim()
+  || "http://timestamp.digicert.com";
+const timestampUrl = timestampSetting.toLowerCase() === "none" ? null : timestampSetting;
+if (timestampUrl && !/^https?:\/\//.test(timestampUrl)) {
+  throw new Error("SFTERM_AUTHENTICODE_TIMESTAMP_URL debe ser HTTP(S) o 'none'");
+}
 
 const config = {
   bundle: {
@@ -26,7 +32,7 @@ const config = {
     ...(certificateThumbprint ? { windows: {
       certificateThumbprint,
       digestAlgorithm: "sha256",
-      timestampUrl: "http://timestamp.digicert.com",
+      ...(timestampUrl ? { timestampUrl } : {}),
     } } : {}),
   },
   plugins: {

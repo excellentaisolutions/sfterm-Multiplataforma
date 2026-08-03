@@ -61,3 +61,47 @@ modo update.
 La CI general ejecuta `npm audit` para dependencias de produccion y el action
 oficial `rustsec/audit-check` contra `src-tauri/Cargo.lock`. Una vulnerabilidad
 alta de npm o un advisory RustSec hace fallar la puerta de validacion.
+
+## Firma personal autofirmada
+
+### Prerrequisito obligatorio antes de generar un instalador
+
+La identidad autofirmada debe existir **antes** de ejecutar cualquier build
+personal del instalador. En una maquina nueva el orden obligatorio es:
+
+1. `npm run signing:personal:generate` (una sola vez).
+2. Guardar una copia de seguridad privada de `%USERPROFILE%\.sfterm-signing`.
+3. `npm run signing:personal:verify`.
+4. `npm run release:personal:windows`.
+
+El ultimo comando falla de forma explicita si no se completo primero la
+generacion. La clave cifrada del updater, el PFX, sus contraseñas, el certificado
+publico y los metadatos se guardan exclusivamente fuera del workspace en
+`%USERPROFILE%\.sfterm-signing`, con herencia de permisos desactivada y acceso
+solo para el usuario actual. Perder la clave del updater impide actualizar
+instalaciones que ya confien en su clave publica.
+
+### Politica para compartir el repositorio
+
+Nunca se copia ni publica en Git el directorio de firma ni ninguno de sus
+archivos: PFX/P12, CER, claves privadas o publicas, contraseñas, Base64,
+fingerprints, metadatos o rutas que identifiquen una cuenta local. La
+documentacion y los scripts solo contienen nombres y procedimientos genericos.
+`.gitignore` bloquea los formatos habituales y `npm run check:distribution`
+falla si Git rastrea material de firma, marcadores de clave/certificado o una
+ruta personal de Windows.
+
+`npm run signing:personal:verify` instala solo el certificado publico generado en los
+almacenes `Root` y `TrustedPublisher` de `CurrentUser`, firma archivos temporales
+y verifica ambas identidades. El workflow de release reconoce un PFX
+autofirmado y confia temporalmente en su certificado dentro del runner para
+validar los artefactos. Cada equipo personal que vaya a instalar SFTerm debe
+importar previamente el `.cer`; esto no constituye confianza publica ni elimina
+SmartScreen para terceros.
+
+`npm run release:personal:windows` prepara la configuracion con esas claves,
+construye NSIS/MSI x64 y exige que ambos instaladores tengan Authenticode
+valido, la huella esperada, firma del updater y manifiesto SHA-256.
+El build personal omite timestamp externo de forma explicita; la firma sera
+valida hasta la caducidad configurada localmente. El release de produccion
+mantiene el timestamp configurado por defecto.

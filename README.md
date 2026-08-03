@@ -150,6 +150,12 @@ sistema y las cachés de fuentes gestionadas por npm, Cargo y rustup.
 
 En una máquina Windows nueva, abre PowerShell:
 
+> **Firma de instaladores personales:** antes de generar NSIS/MSI se debe crear
+> y verificar una identidad autofirmada fuera del repositorio. No se deben
+> publicar certificados, claves, contraseñas, fingerprints ni rutas personales.
+> Sigue el orden obligatorio en la
+> [guía de distribución Windows](docs/DISTRIBUTION-WINDOWS.md#prerrequisito-obligatorio-antes-de-generar-un-instalador).
+
 ```powershell
 git clone https://github.com/excellentaisolutions/sfterm-Multiplataforma.git
 cd sfterm-Multiplataforma

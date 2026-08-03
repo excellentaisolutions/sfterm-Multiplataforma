@@ -571,6 +571,21 @@ Contratos iniciales:
   datos preexistentes de SFTerm. La evidencia final queda pendiente del runner
   efímero que se activa al publicar este checkpoint.
 
+### 3 de agosto de 2026 — Firma personal autofirmada operativa
+
+- Para el alcance personal acordado se generaron fuera del repositorio una
+  clave cifrada permanente del updater y un certificado Authenticode RSA-3072
+  SHA-256 autofirmado; ningún dato o artefacto de esa identidad se rastrea en Git.
+- El certificado público quedó confiado únicamente en `CurrentUser` y la
+  carpeta privada de claves desactiva herencia y concede acceso solo al usuario.
+- Un build release real produjo NSIS (8.256.208 bytes) y MSI (10.461.184 bytes)
+  con Authenticode `Valid`, huella esperada y firmas del updater de 416 bytes.
+- El canal personal omite timestamp externo; las firmas son válidas hasta la
+  caducidad del certificado. El canal público futuro conserva timestamp por
+  defecto y seguirá necesitando una identidad emitida por una CA.
+- Se corrigió el verificador de release para enumerar correctamente los `.sig`
+  y escribir `SHA256SUMS` sin BOM también bajo Windows PowerShell 5.1.
+
 ## 6. Fases de implementación
 
 ### Fase 0 — Baseline confiable
