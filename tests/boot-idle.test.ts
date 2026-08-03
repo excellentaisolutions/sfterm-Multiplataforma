@@ -11,4 +11,5 @@ test("el boot nunca aplica presets ni inyecta comandos o kickoffs", () => {
   assert.ok(bootStart >= 0 && bootEnd > bootStart, "se localiza la funcion boot");
   assert.doesNotMatch(bootSource, /applyPreset|maybeDailyKickoff|agent_command|command\s*:/);
   assert.match(bootSource, /spawnPanel\(\{ cwd: st\(\)\.treeRoot, target: \{ at: "auto" \} \}\)/);
+  assert.match(bootSource, /adoptable\.size > 0 && cfg\.general\.restore_session/);
 });

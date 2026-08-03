@@ -1084,7 +1084,7 @@ comentarios del usuario (la app escribe via toml_edit).
 config_version = 3                # schema (migracion automatica v1->v3; no tocar)
 default_preset = "business-os"   # aporta la carpeta del arranque frio; no ejecuta comandos
 agent_command = "claude --dangerously-skip-permissions"  # comando de ⌘⌥J y panes "agent"
-restore_session = true            # restaurar sesion previa; en frio abre una shell inactiva
+restore_session = false           # shell nueva; sesiones vivas previas quedan en el rail
 daemon = true                     # PTYs en sfterm-ptyd (inmortales); false = clasico
 scrollback = 8000                 # lineas de scrollback por terminal
 

@@ -1721,7 +1721,7 @@ export async function boot() {
     // recuerda el campo viewer si quedo alguno con archivos
     const fileLeaf = T.leaves(tree).find((l) => l.tabs.some((t) => t.kind === "file"));
     if (fileLeaf) st().set({ viewerLeaf: fileLeaf.id });
-  } else if (adoptable.size > 0) {
+  } else if (adoptable.size > 0 && cfg.general.restore_session) {
     // sin sesion guardada pero el daemon tiene conversaciones VIVAS (p.ej.
     // session.json borrado): se adoptan como pestañas de un solo campo — la
     // verdad del daemon manda sobre el preset frio
