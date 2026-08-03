@@ -67,6 +67,17 @@ try {
         # Older PSReadLine versions have no prediction feature/property.
     }
 
+    # PSReadLine may already have loaded the global history before the option
+    # above changes. Clear only its in-memory copy for this new child shell:
+    # the history file is never deleted or rewritten, and commands entered
+    # from now on remain available during the current terminal session.
+    try {
+        [Microsoft.PowerShell.PSConsoleReadLine]::ClearHistory()
+    }
+    catch {
+        # The method is unavailable only on older versions without prediction.
+    }
+
     Set-PSReadLineOption -AddToHistoryHandler {
         param([string] $line)
 
