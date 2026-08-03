@@ -95,7 +95,10 @@ pub fn build_shell_command(
     if shell.to_ascii_lowercase().contains("powershell")
         || shell.to_ascii_lowercase().contains("pwsh")
     {
-        cmd.arg("-NoLogo");
+        // WinTerm promises a neutral shell: the user's global PowerShell
+        // profile may run commands or re-enable predictive history. Skip it
+        // and load only our isolated integration file below.
+        cmd.args(["-NoLogo", "-NoProfile"]);
         if shell_integration.unwrap_or(true) {
             let profile = crate::engine::shell_dir().join("sfterm-profile.ps1");
             if profile.is_file() {
@@ -1254,6 +1257,21 @@ mod tests {
         assert_eq!(windows_force_interrupt_target(42, 42), None);
         assert_eq!(windows_force_interrupt_target(42, 0), None);
         assert_eq!(windows_force_interrupt_target(42, -1), None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn powershell_arranca_sin_perfil_global_del_usuario() {
+        let (command, _) = build_shell_command(None, Some(true), None, 42);
+        let args: Vec<String> = command
+            .get_argv()
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            args.iter().any(|arg| arg.eq_ignore_ascii_case("-NoProfile")),
+            "PowerShell debe ignorar el perfil global: {args:?}"
+        );
     }
 
     /// El hijo tiene que PODER LEER quien es. No basta con que el codigo
