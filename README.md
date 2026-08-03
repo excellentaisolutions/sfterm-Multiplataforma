@@ -1,5 +1,8 @@
 # SFTerm Multiplataforma
 
+Manual completo para personas sin experiencia previa:
+[Manual de usuario de SFTerm / WinTerm](docs/MANUAL-DE-USUARIO.md).
+
 > **Nota:** este repositorio de adaptación permanece privado durante el
 > desarrollo y la auditoría. Está previsto publicarlo cuando la migración
 > alcance el nivel de estabilidad documentado en este README y en el PRP.
@@ -94,24 +97,23 @@ cuenta, sin cloud y sin telemetría. Parte de la familia SaaS Factory
 
 ## Qué es
 
-**Chat-first:** abres la app y estás en una conversación con tu agente (⌘N = agente
-fresco, cero fricción). Las terminales siguen ahí con toda su potencia — como
-backstage al que te asomas (Esc / ❯_ Taller), con badges cuando algo pide tu
-atención. `general.home = "terminals"` en el config restaura el arranque clásico.
+**Terminal-first:** abres la app en una shell limpia que espera tus
+instrucciones. No se ejecutan presets, agentes, comandos ni prompts de forma
+automática. El lector de conversaciones se abre bajo demanda desde la terminal
+enfocada y el historial permite consultar o continuar sesiones de Claude,
+Codex y Kimi.
 
-Tres superficies en una app de ~17MB que usa ~90MB de RAM:
+Tres superficies en una app:
 
-1. **Chat nativo con el agente (el HOME, ⌘L)** — la conversación estilo chat premium:
-   markdown rico (tablas, código con copiar), tool calls expandibles con input y
-   output (+ chip "ver diff" cuando el agente edita un archivo), múltiples
-   conversaciones con memoria (resume), rail estilo mensajería con las terminales
-   vivas y su atención, adjuntos por drag & drop / pegar imagen, dictado por voz
-   100% local (whisper) y cada respuesta se puede ESCUCHAR con la voz del sistema
-   siguiendo la palabra exacta.
-2. **Multiplexor de terminales REALES (el taller)** — rail de conversaciones, splits por
+1. **Terminales reales y agentes bajo demanda** — PowerShell, zsh, Claude,
+   Codex o Kimi funcionan en sesiones separadas. El historial multiproveedor
+   permite consultar conversaciones locales y reanudarlas con su harness y
+   modelo cuando el CLI correspondiente está disponible y autenticado.
+2. **Espacio de trabajo multipanel** — rail de conversaciones, splits por
    drag & drop, árbol de archivos ligado a la ruta actual de la terminal, visor universal
-   solo-lectura y presets agénticos bajo demanda. El arranque abre una shell inactiva: no
-   ejecuta comandos ni envía prompts hasta que tú lo pidas.
+   solo-lectura, navegador integrado, Source Control y presets agénticos bajo
+   demanda. El arranque abre una shell inactiva: no ejecuta comandos ni envía
+   prompts hasta que tú lo pidas.
 3. **Motor de terminal PROPIO en Rust** (`renderer = "own"`) — parser VT (crate vte) + grid
    + scrollback viven en Rust; el frontend solo pinta un canvas. Cada comando es un **bloque**
    (OSC 133) con exit code, duración, re-run ↻ y botón ☰ que abre su output como documento

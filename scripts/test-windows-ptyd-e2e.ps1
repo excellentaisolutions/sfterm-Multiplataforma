@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$Online
+)
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -11,28 +13,33 @@ $tests = @(
     'ptyd::windows_e2e_tests::cliente_lento_no_bloquea_el_pty_ni_el_control',
     'ptyd::windows_e2e_tests::daemon_versionado_permite_reemplazar_el_ejecutable_principal'
 )
+$buildArgs = @(
+    'build',
+    '--manifest-path', 'src-tauri/Cargo.toml',
+    '--locked'
+)
+if (-not $Online) {
+    $buildArgs += '--offline'
+}
+$buildArgs += @('--bin', 'app', '--quiet')
 
-& node scripts/run-with-project-target.mjs cargo build `
-    --manifest-path src-tauri/Cargo.toml `
-    --locked `
-    --offline `
-    --bin app `
-    --quiet
+& node scripts/run-with-project-target.mjs cargo @buildArgs
 if ($LASTEXITCODE -ne 0) {
     throw 'No se pudo compilar app.exe para el E2E de reemplazo.'
 }
 
 foreach ($test in $tests) {
-    & node scripts/run-with-project-target.mjs cargo test `
-        --manifest-path src-tauri/Cargo.toml `
-        --locked `
-        --offline `
-        $test `
-        -- `
-        --exact `
-        --ignored `
-        --nocapture `
-        --test-threads=1
+    $testArgs = @(
+        'test',
+        '--manifest-path', 'src-tauri/Cargo.toml',
+        '--locked'
+    )
+    if (-not $Online) {
+        $testArgs += '--offline'
+    }
+    $testArgs += @($test, '--', '--exact', '--ignored', '--nocapture', '--test-threads=1')
+
+    & node scripts/run-with-project-target.mjs cargo @testArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Windows PTY daemon E2E failed: $test"
     }
