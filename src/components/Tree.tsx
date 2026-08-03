@@ -23,6 +23,7 @@ export default function Tree() {
     currentExplorerRoot(
       s.treeRoot,
       s.focused == null ? null : s.panels[s.focused]?.cwd,
+      s.explorerRoot,
     ),
   );
   const treeSel = useStore((s) => s.treeSel);

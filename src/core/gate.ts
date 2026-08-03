@@ -699,7 +699,11 @@ async function dispatch(op: string, a: Record<string, unknown>): Promise<unknown
         await actions.setTreeRoot(p);
       }
       const s = st();
-      return { root: s.treeRoot, view: s.sideView };
+      const explorerRoot =
+        (s.focused == null ? "" : s.panels[s.focused]?.cwd) ||
+        s.explorerRoot ||
+        s.treeRoot;
+      return { root: s.treeRoot, explorer_root: explorerRoot, view: s.sideView };
     }
 
     // ---- SOURCE CONTROL espejo (28 jul): el repo como datos, todo LECTURA ----

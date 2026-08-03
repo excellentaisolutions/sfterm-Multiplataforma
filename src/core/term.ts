@@ -343,7 +343,11 @@ class TerminalManager {
       else e.term!.focus();
     }
     const leaf = leafOfTerm(st.root, id);
-    st.set({ focused: id, focusedLeaf: leaf?.id ?? st.focusedLeaf });
+    st.set({
+      focused: id,
+      focusedLeaf: leaf?.id ?? st.focusedLeaf,
+      explorerRoot: st.panels[id]?.cwd?.trim() || st.explorerRoot || st.treeRoot,
+    });
     st.setAttention(id, null);
   }
 

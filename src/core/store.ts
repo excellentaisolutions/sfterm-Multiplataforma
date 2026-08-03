@@ -89,6 +89,8 @@ export interface StoreState {
   railVisible: boolean;
   treeVisible: boolean;
   treeRoot: string;
+  /** Ultimo cwd valido mostrado por Archivos. Persiste al enfocar un visor. */
+  explorerRoot: string;
   presetName: string;
   /** Multi-seleccion del arbol de archivos (⌘+clic/⇧+clic): paths en orden.
    *  EN MEMORIA a proposito, jamas se persiste en la sesion. Se limpia al
@@ -159,6 +161,7 @@ export const useStore = create<StoreState>((set, get) => ({
   railVisible: true,
   treeVisible: true,
   treeRoot: "",
+  explorerRoot: "",
   presetName: "",
   treeSel: [],
   treeAnchor: null,

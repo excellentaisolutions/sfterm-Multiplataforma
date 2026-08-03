@@ -66,6 +66,17 @@ test("el explorador sigue el cwd enfocado y conserva el proyecto como fallback",
   );
 });
 
+test("al abrir un archivo el explorador conserva el ultimo cwd de la terminal", () => {
+  assert.equal(
+    currentExplorerRoot("C:\\Otro\\Proyecto", null, "C:\\Work\\Actual"),
+    "C:\\Work\\Actual",
+  );
+  assert.equal(
+    currentExplorerRoot("C:\\Otro\\Proyecto", "C:\\Work\\Nueva", "C:\\Work\\Actual"),
+    "C:\\Work\\Nueva",
+  );
+});
+
 test("paths soltados se citan según el shell activo", () => {
   assert.equal(
     quoteShellPaths(["C:\\AI Work\\O'Brien.txt", "\\\\server\\share\\x.txt"], "powershell"),

@@ -1169,7 +1169,12 @@ export async function setTreeRoot(rootRaw: string) {
   root = root.replace(/\/+$/, "");
   // la multi-seleccion del arbol es del ROOT anterior: cambiar de raiz (o
   // aplicar un preset, que llama aqui) la vuelve invalida
-  st().set({ treeRoot: root, treeSel: [], treeAnchor: null });
+  st().set({
+    treeRoot: root,
+    explorerRoot: st().explorerRoot || root,
+    treeSel: [],
+    treeAnchor: null,
+  });
   pushRecentRoot(root);
   try {
     await ipc.fsWatchRoot(root);
@@ -1687,6 +1692,7 @@ export async function boot() {
         semanticCwdTerms.add(id);
         if (data !== p.cwd) {
           s.setPanel(id, { cwd: data });
+          if (s.focused === id) s.set({ explorerRoot: data });
           scheduleSessionSave();
         }
       }

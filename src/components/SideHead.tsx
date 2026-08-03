@@ -44,6 +44,7 @@ export default function SideHead() {
     currentExplorerRoot(
       s.treeRoot,
       s.focused == null ? null : s.panels[s.focused]?.cwd,
+      s.explorerRoot,
     ),
   );
   const view = useStore((s) => s.sideView);

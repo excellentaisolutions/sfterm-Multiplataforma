@@ -24,11 +24,15 @@ export function pathDirname(value: string): string {
   return path.slice(0, index);
 }
 
-/** La vista Archivos sigue la carpeta de la terminal enfocada. Si no hay una
- * terminal activa (por ejemplo, al enfocar un visor), conserva la raiz del
- * proyecto como fallback estable. */
-export function currentExplorerRoot(projectRoot: string, focusedCwd?: string | null): string {
-  return focusedCwd?.trim() ? focusedCwd : projectRoot;
+/** La vista Archivos sigue la carpeta de la terminal enfocada y la RECUERDA
+ * cuando el foco pasa a un archivo. El root del proyecto es solo el fallback
+ * inicial; abrir un visor no debe desmontar ni vaciar el explorador. */
+export function currentExplorerRoot(
+  projectRoot: string,
+  focusedCwd?: string | null,
+  retainedRoot?: string | null,
+): string {
+  return focusedCwd?.trim() || retainedRoot?.trim() || projectRoot;
 }
 
 /** El OSC 7 del shell es la fuente canonica del cwd. En Windows, consultar el
