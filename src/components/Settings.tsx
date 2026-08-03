@@ -24,6 +24,9 @@ import type { ShortcutPlatform } from "../core/keys";
 export default function Settings() {
   const open = useStore((s) => s.ui.settings);
   const config = useStore((s) => s.config);
+  const focusedCwd = useStore((s) =>
+    s.focused == null ? "" : (s.panels[s.focused]?.cwd ?? ""),
+  );
   const [fonts, setFonts] = useState<{ all: string[]; mono: string[] }>({ all: [], mono: [] });
   const [tab, setTab] = useState<"general" | "atajos" | "actualizaciones">("general");
 
@@ -72,6 +75,12 @@ export default function Settings() {
 
         {tab === "general" && (
           <>
+            <div className="settings-section">Terminal</div>
+            <WorkingDirectorySetting
+              value={config.general.working_directory ?? ""}
+              currentCwd={focusedCwd}
+            />
+
             <div className="settings-section">Paleta</div>
             <div className="theme-grid">
               {themes.map(([name, t]) => (
@@ -142,6 +151,64 @@ export default function Settings() {
         {tab === "actualizaciones" && <ActualizacionesTab />}
       </div>
     </div>
+  );
+}
+
+function WorkingDirectorySetting(props: { value: string; currentCwd: string }) {
+  const { value, currentCwd } = props;
+  const [draft, setDraft] = useState(value);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => setDraft(value), [value]);
+
+  const save = async (next = draft) => {
+    const path = next.trim();
+    if (path) {
+      try {
+        await ipc.fsListDir(path);
+      } catch {
+        setStatus("La carpeta no existe o no es accesible.");
+        return;
+      }
+    }
+    try {
+      await ipc.configSet([["general.working_directory", path]]);
+      setStatus(path ? "Guardada para terminales nuevas." : "Se usará la ruta del preset.");
+    } catch (error) {
+      setStatus(`No se pudo guardar: ${String(error)}`);
+    }
+  };
+
+  return (
+    <>
+      <div className="appearance-row working-directory-row">
+        <label>Ruta de trabajo</label>
+        <input
+          type="text"
+          value={draft}
+          placeholder="Vacío = carpeta del preset"
+          spellCheck={false}
+          onChange={(event) => { setDraft(event.target.value); setStatus(""); }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void save();
+          }}
+        />
+        <button onClick={() => void save()}>Guardar</button>
+      </div>
+      <div className="appearance-row">
+        <label></label>
+        <button
+          disabled={!currentCwd}
+          onClick={() => {
+            setDraft(currentCwd);
+            setStatus("");
+          }}
+        >
+          Usar ruta actual
+        </button>
+        <span className="note">{status || "Se aplica al arrancar y al crear terminales nuevas."}</span>
+      </div>
+    </>
   );
 }
 

@@ -31,6 +31,18 @@ export function currentExplorerRoot(projectRoot: string, focusedCwd?: string | n
   return focusedCwd?.trim() ? focusedCwd : projectRoot;
 }
 
+/** El OSC 7 del shell es la fuente canonica del cwd. En Windows, consultar el
+ * proceso puede devolver para siempre su carpeta de nacimiento y no el
+ * Set-Location actual; ese sondeo solo sirve hasta recibir el primer OSC 7. */
+export function reconcilePanelCwd(
+  currentCwd: string,
+  processCwd: string,
+  shellReportedCwd: boolean,
+): string {
+  if (shellReportedCwd) return currentCwd;
+  return processCwd.trim() || currentCwd;
+}
+
 /** Ruta relativa con separadores Git (`/`), o el valor intacto si queda fuera. */
 export function pathRelative(root: string, value: string): string {
   const base = root.replace(/\\/g, "/").replace(/\/+$/, "");

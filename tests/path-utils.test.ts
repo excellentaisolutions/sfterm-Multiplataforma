@@ -8,6 +8,7 @@ import {
   pathBasename,
   pathDirname,
   pathRelative,
+  reconcilePanelCwd,
 } from "../src/core/path-utils.ts";
 import { quoteShellPaths, worktreeShellCommand } from "../src/core/shell-command.ts";
 
@@ -24,6 +25,17 @@ test("paths Windows, UNC y POSIX comparten basename y dirname", () => {
   assert.equal(
     pathRelative("C:\\AI Work", "c:\\AI Work\\niño_界\\informe final.txt"),
     "niño_界/informe final.txt",
+  );
+});
+
+test("el cwd semantico del shell no es revertido por el sondeo del proceso", () => {
+  assert.equal(
+    reconcilePanelCwd("C:/Work/Project", "C:\\Users\\Example", true),
+    "C:/Work/Project",
+  );
+  assert.equal(
+    reconcilePanelCwd("", "C:\\Users\\Example", false),
+    "C:\\Users\\Example",
   );
 });
 

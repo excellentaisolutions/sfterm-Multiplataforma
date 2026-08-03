@@ -20,9 +20,14 @@ import type {
   Theme,
 } from "./types";
 import { quoteShellPaths } from "./shell-command";
-import { pathBasename } from "./path-utils";
+import { pathBasename, reconcilePanelCwd } from "./path-utils";
 
 const st = () => useStore.getState();
+const semanticCwdTerms = new Set<number>();
+
+function defaultWorkingDirectory(): string {
+  return st().config?.general.working_directory?.trim() || st().treeRoot;
+}
 
 // ---------- config / tema ----------
 
@@ -370,6 +375,7 @@ async function spawnPanel(opts: {
       ),
   });
   spawnedId = id;
+  semanticCwdTerms.delete(id);
   manager.register(id, entry);
 
   const meta = {
@@ -435,7 +441,7 @@ async function spawnPanel(opts: {
 export async function newTerminal(cwd?: string) {
   // pediste una terminal → se tiene que VER (revela el taller si el chat tapa)
   if (st().ui.chat) showChat(false);
-  return spawnPanel({ cwd: cwd ?? st().treeRoot, target: { at: "auto" } });
+  return spawnPanel({ cwd: cwd ?? defaultWorkingDirectory(), target: { at: "auto" } });
 }
 
 /** DRAWER ⌘J (estilo VSCode, 17 jul): terminal rapida que SUBE desde abajo,
@@ -458,7 +464,7 @@ export async function toggleDrawer() {
     ? s.drawerTermId
     : (terms[terms.length - 1] ?? null);
   if (id == null) {
-    id = await spawnPanel({ cwd: s.treeRoot, target: { at: "drawer" } });
+    id = await spawnPanel({ cwd: defaultWorkingDirectory(), target: { at: "drawer" } });
     terms.push(id);
   }
   // el FOCO lo da el efecto del Drawer tras place() (aqui el slot aun esta
@@ -469,7 +475,7 @@ export async function toggleDrawer() {
 
 /** `+` del drawer: OTRA terminal como tab (multi-terminal estilo VSCode). */
 export async function newDrawerTerm() {
-  const id = await spawnPanel({ cwd: st().treeRoot, target: { at: "drawer" } });
+  const id = await spawnPanel({ cwd: defaultWorkingDirectory(), target: { at: "drawer" } });
   const s = st();
   s.set({
     drawerTerms: [...s.drawerTerms.filter((t) => manager.get(t) && t !== id), id],
@@ -494,7 +500,7 @@ export async function newConversation(cwd?: string) {
   if (st().ui.chat) showChat(false);
   const cfg = st().config!;
   return spawnPanel({
-    cwd: cwd ?? st().treeRoot,
+    cwd: cwd ?? defaultWorkingDirectory(),
     command: cfg.general.agent_command,
     target: { at: "auto" },
   });
@@ -505,6 +511,7 @@ export function closePanel(id: number) {
   const wasDrawer = st().drawerTerms.includes(id);
   void ipc.ptyKill(id);
   manager.dispose(id);
+  semanticCwdTerms.delete(id);
   const panels = { ...st().panels };
   delete panels[id];
   // SU navegador muere con ella. Un WKWebView es un proceso completo: dejarlo
@@ -1127,7 +1134,7 @@ export async function gateSpawn(opts: {
   show?: boolean;
 }): Promise<number> {
   return spawnPanel({
-    cwd: opts.cwd ?? st().treeRoot,
+    cwd: opts.cwd ?? defaultWorkingDirectory(),
     command: opts.command,
     target: opts.show === false ? { at: "dock" } : { at: "auto" },
   });
@@ -1551,6 +1558,7 @@ async function adoptDetached(id: number): Promise<number | null> {
       },
     });
     entry = manager.create(cfg, theme);
+    semanticCwdTerms.delete(id);
     manager.register(id, entry);
     for (const d of pending) manager.feed(entry, d);
     pending.length = 0;
@@ -1587,6 +1595,7 @@ async function spawnDetached(cwd: string): Promise<number> {
       ),
   });
   spawnedId = id;
+  semanticCwdTerms.delete(id);
   manager.register(id, entry);
   const panels = {
     ...st().panels,
@@ -1607,12 +1616,13 @@ function handleTick(t: SysTick) {
     const meta = panels[p.id];
     if (!meta) continue;
     const fgName = p.fg_name.replace(/^-/, "");
+    const cwd = reconcilePanelCwd(meta.cwd, p.cwd, semanticCwdTerms.has(p.id));
     if (
       meta.fgName !== fgName ||
-      meta.cwd !== p.cwd ||
+      meta.cwd !== cwd ||
       Math.abs(meta.cpu - p.cpu) > 2
     ) {
-      panels[p.id] = { ...meta, fgName, cwd: p.cwd || meta.cwd, cpu: p.cpu };
+      panels[p.id] = { ...meta, fgName, cwd, cpu: p.cpu };
       dirty = true;
     }
   }
@@ -1673,9 +1683,12 @@ export async function boot() {
     } else if (kind === "bell") {
       if (s.focused !== id) s.setAttention(id, "bell");
     } else if (kind === "cwd") {
-      if (data && data !== p.cwd) {
-        s.setPanel(id, { cwd: data });
-        scheduleSessionSave();
+      if (data) {
+        semanticCwdTerms.add(id);
+        if (data !== p.cwd) {
+          s.setPanel(id, { cwd: data });
+          scheduleSessionSave();
+        }
       }
     } else if (kind === "attention") {
       // nervio aferente en la UI: agente esperando input (quiet) o proceso
@@ -1741,10 +1754,15 @@ export async function boot() {
       await spawnPanel({ target: { at: "auto" } });
     }
   } else {
+    const configuredRoot = cfg.general.working_directory?.trim();
     const preset =
       cfg.presets?.find((p) => p.name === cfg.general.default_preset) ??
       cfg.presets?.[0];
-    if (preset) {
+    if (configuredRoot) {
+      if (preset) st().set({ presetName: preset.name });
+      await setTreeRoot(configuredRoot);
+      await spawnPanel({ cwd: st().treeRoot, target: { at: "auto" } });
+    } else if (preset) {
       // Arranque en frio deliberadamente inactivo: el preset solo aporta la
       // carpeta inicial. Sus comandos/kickoff se ejecutan exclusivamente si
       // el usuario aplica el preset desde la paleta.

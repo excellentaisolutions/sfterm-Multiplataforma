@@ -1269,7 +1269,8 @@ mod tests {
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect();
         assert!(
-            args.iter().any(|arg| arg.eq_ignore_ascii_case("-NoProfile")),
+            args.iter()
+                .any(|arg| arg.eq_ignore_ascii_case("-NoProfile")),
             "PowerShell debe ignorar el perfil global: {args:?}"
         );
     }

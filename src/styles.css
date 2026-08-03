@@ -1241,7 +1241,7 @@ pre.diff { padding: 10px 12px; font-family: ui-monospace, Menlo, monospace; font
   padding: 7px 16px; font-size: 13px;
 }
 .appearance-row label { width: 150px; color: var(--dim); }
-.appearance-row select, .appearance-row input[type="number"] {
+.appearance-row select, .appearance-row input[type="number"], .appearance-row input[type="text"] {
   flex: 1; background: var(--bg); color: var(--fg);
   border: 1px solid var(--border); border-radius: 6px;
   padding: 5px 8px; font-size: 12.5px; outline: none;

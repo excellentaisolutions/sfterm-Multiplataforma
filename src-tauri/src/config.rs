@@ -259,7 +259,7 @@ const DEFAULT_CONFIG: &str = r##"# =============================================
 
 [general]
 # Version del schema (migraciones automaticas; no tocar)
-config_version = 9
+config_version = 10
 # Interfaz de la app (se RECUERDA la ultima; switch en Configuracion → General):
 #   "warp"  SOLO TERMINALES tipo Warp, agnostica de proveedor (claude, codex,
 #           aider, cualquier CLI). El chat existe solo como LECTOR (espejo) de
@@ -271,6 +271,9 @@ app_mode = "warp"
 default_preset = "business-os"
 # Comando de agente para "nueva conversacion" (Cmd+Opt+J y panes de presets con "agent")
 agent_command = "claude --dangerously-skip-permissions"
+# Carpeta inicial de la app y de terminales nuevas. Vacia = root del preset.
+# Acepta rutas absolutas y ~ (ej. "~/Developer").
+working_directory = ""
 # Restaurar la sesion anterior al abrir. false = una shell nueva y limpia;
 # las terminales vivas anteriores se conservan en el rail, sin tomar la vista.
 restore_session = false
@@ -726,6 +729,18 @@ fn migrate_config(raw: &str) -> Option<String> {
         }
     }
 
+    if version < 10 {
+        // v9 -> v10: ruta inicial configurable. Vacia conserva exactamente el
+        // comportamiento previo (el preset aporta la carpeta de trabajo).
+        if let Some(general) = doc.get_mut("general").and_then(|item| item.as_table_mut()) {
+            if general.get("working_directory").is_none() {
+                general["working_directory"] = toml_edit::value("");
+            }
+            general["config_version"] = toml_edit::value(10);
+            changed = true;
+        }
+    }
+
     // backfill: llaves del default ausentes en el config del usuario
     // (temas nuevos, atajos nuevos, flags nuevos). Arrays (presets) NO se tocan.
     if merge_missing(doc.as_table_mut(), default.as_table()) {
@@ -908,8 +923,9 @@ panes = ["agent", ""]
         );
         // el theme elegido por el usuario NO se pisa por el nuevo default
         assert_eq!(doc["appearance"]["theme"].as_str(), Some("titanium"));
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(9));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(10));
         assert_eq!(doc["general"]["restore_session"].as_bool(), Some(false));
+        assert_eq!(doc["general"]["working_directory"].as_str(), Some(""));
         // v4: ⌥Tab muerto y ⌘F liberado para fijar (search → ⌘⌥F)
         assert!(keys.get("cycle_next").is_none());
         assert!(keys.get("cycle_prev").is_none());
@@ -951,7 +967,7 @@ cycle_pinned = "shift+tab"
             doc["keys"].get("cycle_pinned").is_none(),
             "el vistazo murio: la llave no puede sobrevivir a la cadena"
         );
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(9));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(10));
         // y hereda los ciclados nuevos por backfill del DEFAULT_CONFIG
         assert_eq!(doc["keys"]["next_terminal"].as_str(), Some("alt+tab"));
         assert_eq!(doc["keys"]["next_tab"].as_str(), Some("shift+tab"));
@@ -979,7 +995,7 @@ composer = "cmd+shift+i"
         assert!(doc["keys"].get("pin_conversation").is_none());
         assert_eq!(doc["keys"]["next_terminal"].as_str(), Some("alt+tab"));
         assert_eq!(doc["keys"]["next_tab"].as_str(), Some("shift+tab"));
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(9));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(10));
         // lo que Daniel remapeo a mano NO se toca
         assert_eq!(doc["keys"]["composer"].as_str(), Some("cmd+shift+i"));
     }
@@ -1012,7 +1028,7 @@ select_all = "ctrl+a"
 "#;
         let out = migrate_config(v7).expect("migra v7 -> v8");
         let doc: toml_edit::DocumentMut = out.parse().unwrap();
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(9));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(10));
         assert_eq!(doc["keys"]["new_terminal"].as_str(), Some("primary+j"));
         assert_eq!(
             doc["keys"]["palette"].as_str(),
@@ -1023,13 +1039,30 @@ select_all = "ctrl+a"
     }
 
     #[test]
+    fn migracion_v10_anade_ruta_vacia_y_respeta_una_existente() {
+        let missing = "[general]\nconfig_version = 9\n";
+        let out = migrate_config(missing).expect("migra v9 -> v10");
+        let doc: toml_edit::DocumentMut = out.parse().unwrap();
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(10));
+        assert_eq!(doc["general"]["working_directory"].as_str(), Some(""));
+
+        let custom = "[general]\nconfig_version = 9\nworking_directory = \"D:/Trabajo\"\n";
+        let out = migrate_config(custom).expect("sube version sin pisar la ruta");
+        let doc: toml_edit::DocumentMut = out.parse().unwrap();
+        assert_eq!(
+            doc["general"]["working_directory"].as_str(),
+            Some("D:/Trabajo")
+        );
+    }
+
+    #[test]
     fn migracion_v6_app_mode() {
         // v5 sin app_mode: el backfill lo agrega como "warp" y la version sube
         let v5 = "[general]\nconfig_version = 5\n";
         let out = migrate_config(v5).expect("migra v5 -> v6");
         let doc: toml_edit::DocumentMut = out.parse().unwrap();
         assert_eq!(doc["general"]["app_mode"].as_str(), Some("warp"));
-        assert_eq!(doc["general"]["config_version"].as_integer(), Some(9));
+        assert_eq!(doc["general"]["config_version"].as_integer(), Some(10));
         // usuario que ya eligio la interfaz completa: se respeta
         let full = "[general]\nconfig_version = 5\napp_mode = \"full\"\n";
         let out2 = migrate_config(full).expect("sube version");
@@ -1064,7 +1097,7 @@ select_all = "ctrl+a"
     }
 
     #[test]
-    fn default_config_ya_es_v9() {
+    fn default_config_ya_es_v10() {
         assert!(
             migrate_config(DEFAULT_CONFIG).is_none(),
             "el default no debe necesitar migracion"

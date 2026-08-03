@@ -63,6 +63,8 @@ export interface AppConfig {
   general: {
     default_preset: string;
     agent_command: string;
+    /** Carpeta inicial de shells nuevas. Vacia = root del preset/proyecto. */
+    working_directory?: string;
     restore_session: boolean;
     scrollback: number;
     /** OSC 133/633/7 en zsh (bloques + cwd). default true */
