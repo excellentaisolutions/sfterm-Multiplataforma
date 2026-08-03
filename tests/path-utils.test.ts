@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  currentExplorerRoot,
   isAbsolutePath,
   parseDroppedPaths,
   pathBasename,
@@ -35,6 +36,21 @@ test("drag-and-drop acepta drives y UNC pero rechaza texto relativo", () => {
       "C:\\Work\\a.txt\r\n\\\\server\\share\\niño_界\\informe final.txt\nrelativo.txt\nC:\\Work\\a.txt",
     ),
     ["C:\\Work\\a.txt", "\\\\server\\share\\niño_界\\informe final.txt"],
+  );
+});
+
+test("el explorador sigue el cwd enfocado y conserva el proyecto como fallback", () => {
+  assert.equal(
+    currentExplorerRoot("C:\\Developer\\AI\\WinTerm", "C:\\Developer\\AI\\WinTerm\\src"),
+    "C:\\Developer\\AI\\WinTerm\\src",
+  );
+  assert.equal(
+    currentExplorerRoot("C:\\Developer\\AI\\WinTerm", null),
+    "C:\\Developer\\AI\\WinTerm",
+  );
+  assert.equal(
+    currentExplorerRoot("C:\\Developer\\AI\\WinTerm", ""),
+    "C:\\Developer\\AI\\WinTerm",
   );
 });
 

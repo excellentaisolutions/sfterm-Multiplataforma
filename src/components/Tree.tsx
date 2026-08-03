@@ -4,7 +4,13 @@ import * as ipc from "../core/ipc";
 import * as actions from "../core/actions";
 import { iconForFile, iconForFolder } from "../core/icons";
 import type { DirEntryInfo } from "../core/types";
-import { fileManagerLabel, pathBasename, pathDirname, pathRelative } from "../core/path-utils";
+import {
+  currentExplorerRoot,
+  fileManagerLabel,
+  pathBasename,
+  pathDirname,
+  pathRelative,
+} from "../core/path-utils";
 
 interface NodeState {
   entries: DirEntryInfo[] | null;
@@ -13,9 +19,14 @@ interface NodeState {
 
 export default function Tree() {
   const treeRoot = useStore((s) => s.treeRoot);
+  const root = useStore((s) =>
+    currentExplorerRoot(
+      s.treeRoot,
+      s.focused == null ? null : s.panels[s.focused]?.cwd,
+    ),
+  );
   const treeSel = useStore((s) => s.treeSel);
   const git = useStore((s) => s.git);
-  const root = treeRoot;
   const fileManager = fileManagerLabel();
   const [nodes, setNodes] = useState<Record<string, NodeState>>({});
   const treeRef = useRef<HTMLDivElement>(null);
@@ -33,6 +44,7 @@ export default function Tree() {
   useEffect(() => {
     if (!root) return;
     setNodes({});
+    useStore.getState().set({ treeSel: [], treeAnchor: null });
     void loadDir(root);
   }, [root, loadDir]);
 

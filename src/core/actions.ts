@@ -1054,44 +1054,15 @@ export async function applyPreset(preset: Preset) {
   scheduleSessionSave();
 }
 
-/** Corre el comando kickoff del preset y manda su stdout como primer prompt
- *  al agente cuando este listo (Daniel abre la app = el dia ya arranco). */
+/** Corre el kickoff de un preset elegido expresamente y manda su stdout como
+ * primer prompt al agente cuando este listo. Nunca se llama desde boot. */
 async function kickoffPane(id: number, cmd: string, cwd?: string) {
-  markKickoffToday();
   try {
     const prompt = (await ipc.shellCapture(cmd, cwd ?? st().treeRoot)).trim();
     if (prompt) await sendWhenReady(id, prompt);
   } catch (e) {
     console.warn("kickoff fallo:", e);
   }
-}
-
-const KICKOFF_DAY_KEY = "sfterm-kickoff-day";
-function markKickoffToday() {
-  localStorage.setItem(KICKOFF_DAY_KEY, new Date().toDateString());
-}
-
-/** Briefing diario aunque haya sesion restaurada: la PRIMERA apertura del dia
- *  abre un agente fresco (toma la vista, modelo VSCode) con el kickoff del
- *  preset default. Una vez por dia. */
-async function maybeDailyKickoff(cfg: AppConfig) {
-  const preset =
-    cfg.presets?.find((p) => p.name === cfg.general.default_preset) ??
-    cfg.presets?.[0];
-  if (!preset?.kickoff) return;
-  if (localStorage.getItem(KICKOFF_DAY_KEY) === new Date().toDateString()) return;
-  markKickoffToday();
-  let rootAbs = preset.root;
-  if (rootAbs === "~" || rootAbs.startsWith("~/")) {
-    const home = await ipc.fsHomeDir();
-    rootAbs = rootAbs === "~" ? home : home + rootAbs.slice(1);
-  }
-  const id = await spawnPanel({
-    cwd: rootAbs,
-    command: cfg.general.agent_command,
-    target: { at: "auto" },
-  });
-  void kickoffPane(id, preset.kickoff, rootAbs);
 }
 
 /** Espera a que el pane haya ARRANCADO (hubo output y luego quiet ~1.5s,
@@ -1750,8 +1721,6 @@ export async function boot() {
     // recuerda el campo viewer si quedo alguno con archivos
     const fileLeaf = T.leaves(tree).find((l) => l.tabs.some((t) => t.kind === "file"));
     if (fileLeaf) st().set({ viewerLeaf: fileLeaf.id });
-    // primera apertura del dia: briefing automatico aunque haya sesion
-    void maybeDailyKickoff(cfg);
   } else if (adoptable.size > 0) {
     // sin sesion guardada pero el daemon tiene conversaciones VIVAS (p.ej.
     // session.json borrado): se adoptan como pestañas de un solo campo — la
@@ -1771,13 +1740,17 @@ export async function boot() {
     } else {
       await spawnPanel({ target: { at: "auto" } });
     }
-    void maybeDailyKickoff(cfg);
   } else {
     const preset =
       cfg.presets?.find((p) => p.name === cfg.general.default_preset) ??
       cfg.presets?.[0];
     if (preset) {
-      await applyPreset(preset);
+      // Arranque en frio deliberadamente inactivo: el preset solo aporta la
+      // carpeta inicial. Sus comandos/kickoff se ejecutan exclusivamente si
+      // el usuario aplica el preset desde la paleta.
+      st().set({ presetName: preset.name });
+      await setTreeRoot(preset.root);
+      await spawnPanel({ cwd: st().treeRoot, target: { at: "auto" } });
     } else {
       await setTreeRoot(await ipc.fsHomeDir());
       await spawnPanel({ target: { at: "auto" } });

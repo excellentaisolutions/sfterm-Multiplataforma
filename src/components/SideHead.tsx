@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "../core/store";
 import * as actions from "../core/actions";
 import { recentRoots } from "../core/actions";
-import { pathBasename } from "../core/path-utils";
+import { currentExplorerRoot, pathBasename } from "../core/path-utils";
 
 function IconFiles({ active }: { active: boolean }) {
   return (
@@ -40,14 +40,22 @@ function IconScm({ active }: { active: boolean }) {
 
 export default function SideHead() {
   const treeRoot = useStore((s) => s.treeRoot);
+  const explorerRoot = useStore((s) =>
+    currentExplorerRoot(
+      s.treeRoot,
+      s.focused == null ? null : s.panels[s.focused]?.cwd,
+    ),
+  );
   const view = useStore((s) => s.sideView);
   const sync = useStore((s) => s.scm?.sync ?? null);
   const config = useStore((s) => s.config);
   const [picker, setPicker] = useState(false);
   const headRef = useRef<HTMLDivElement>(null);
 
-  const rootName = pathBasename(treeRoot);
+  const visibleRoot = view === "files" ? explorerRoot : treeRoot;
+  const rootName = pathBasename(visibleRoot);
   const setView = (v: "files" | "scm") => {
+    setPicker(false);
     useStore.getState().set({ sideView: v });
     localStorage.setItem("sfterm-side-view", v);
   };
@@ -98,7 +106,9 @@ export default function SideHead() {
     <div className="side-head side-head--tabs" ref={headRef}>
       <button
         className={`side-tab ${view === "files" ? "active" : ""}`}
-        title="Archivos"
+        title="Archivos de la terminal actual"
+        aria-label="Archivos de la terminal actual"
+        aria-pressed={view === "files"}
         onClick={() => setView("files")}
       >
         <IconFiles active={view === "files"} />
@@ -110,19 +120,33 @@ export default function SideHead() {
           (dirty > 0 ? ` — ${dirty} ${dirty === 1 ? "archivo cambiado" : "archivos cambiados"}` : "") +
           (sync?.is_repo && sync.ahead > 0 ? ` · ${sync.ahead} sin push` : "")
         }
+        aria-label="Control de código fuente"
+        aria-pressed={view === "scm"}
         onClick={() => setView("scm")}
       >
         <IconScm active={view === "scm"} />
         {badge && <span className="side-tab-badge">{badge}</span>}
       </button>
-      <button
-        className="root-pick"
-        title={`${treeRoot}\nclick: cambiar de repo`}
-        onClick={() => setPicker((v) => !v)}
-      >
-        <span className="root-name">{rootName}</span>
-        <span className="root-chev">▾</span>
-      </button>
+      {view === "files" ? (
+        <div
+          className="root-pick root-pick--current"
+          title={`${explorerRoot}\nRuta actual de la terminal enfocada`}
+          aria-live="polite"
+        >
+          <span className="root-name">{rootName}</span>
+        </div>
+      ) : (
+        <button
+          className="root-pick"
+          title={`${treeRoot}\nclick: cambiar de repo`}
+          aria-label={`Repositorio actual: ${rootName}. Cambiar de repositorio`}
+          aria-expanded={picker}
+          onClick={() => setPicker((v) => !v)}
+        >
+          <span className="root-name">{rootName}</span>
+          <span className="root-chev">▾</span>
+        </button>
+      )}
 
       {picker && (
         <div className="root-menu">

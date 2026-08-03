@@ -113,6 +113,12 @@ clic del arbol pasa `{ preview: true }`. Una apertura permanente promueve un
 preview existente del mismo path; un preview nuevo jamas degrada uno ya
 permanente.
 
+**Raiz visible ligada a la terminal (3 ago 2026):** la vista Archivos usa el
+`cwd` vivo de la terminal enfocada (OSC 7/metricas) y cambia al hacer `cd`.
+Si no hay terminal enfocada, cae a `treeRoot`. La vista Source Control conserva
+`treeRoot` como raiz Git independiente; cambiar de carpeta en una shell no
+reapunta el repositorio ni su historial.
+
 **Multi-seleccion + multi-drag del arbol (23 jul 2026):** ⌘+clic togglea un
 path dentro de `store.treeSel`; ⇧+clic selecciona el rango contra
 `treeAnchor` sobre la lista PLANA de filas visibles (misma recursion que el
@@ -698,8 +704,9 @@ mensaje). `src/components/Composer.tsx`.
 
 **Kickoff de presets:** `kickoff = "<comando shell>"` en un `[[presets]]` corre
 el comando (cwd = root) y manda su stdout como PRIMER prompt al primer pane
-"agent" cuando esta listo (espera output + quiet). Es el morning briefing
-automatico: abrir la app = el agente ya sabe que toca hoy.
+"agent" cuando esta listo (espera output + quiet), pero solo al elegir ese
+preset expresamente. El boot nunca ejecuta comandos ni kickoffs: en frio abre
+una shell inactiva en la raiz configurada y queda esperando input.
 
 **Puerta de agentes (gate):** SIEMPRE activa. Levy/scripts operan la app por
 archivos en `~/.config/sfterm/gate/` (cmd-*.json → res-*.json). Ops: ping,
@@ -1075,9 +1082,9 @@ comentarios del usuario (la app escribe via toml_edit).
 ```toml
 [general]
 config_version = 3                # schema (migracion automatica v1->v3; no tocar)
-default_preset = "business-os"   # preset que se monta en arranque frio
+default_preset = "business-os"   # aporta la carpeta del arranque frio; no ejecuta comandos
 agent_command = "claude --dangerously-skip-permissions"  # comando de ⌘⌥J y panes "agent"
-restore_session = true            # restaurar sesion previa; preset solo en frio
+restore_session = true            # restaurar sesion previa; en frio abre una shell inactiva
 daemon = true                     # PTYs en sfterm-ptyd (inmortales); false = clasico
 scrollback = 8000                 # lineas de scrollback por terminal
 

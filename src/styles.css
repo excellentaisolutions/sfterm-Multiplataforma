@@ -732,6 +732,11 @@ body.dragging-file .term-slot { pointer-events: none; }
   position: relative;
 }
 .side-tab:hover { color: var(--fg); }
+.side-tab:focus-visible,
+.root-pick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .side-tab.active {
   color: var(--accent);
   border-color: var(--border);
@@ -776,6 +781,10 @@ body.dragging-file .term-slot { pointer-events: none; }
   justify-content: flex-end;
 }
 .root-pick:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.root-pick--current {
+  cursor: default;
+}
+.root-pick--current:hover { background: none; }
 .root-chev { color: var(--dim); font-size: 8px; }
 .root-menu {
   position: absolute;

@@ -266,7 +266,8 @@ config_version = 8
 #           la conversacion de una terminal: ⌃Tab / ⌘L la abre, Esc vuelve.
 #   "full"  la interfaz completa chat+taller de Claude Code (todo lo construido)
 app_mode = "warp"
-# Preset que se monta al abrir la app en frio (sin sesion previa)
+# Preset que aporta la carpeta inicial al abrir en frio. Sus comandos solo se
+# ejecutan al elegir el preset expresamente desde la paleta.
 default_preset = "business-os"
 # Comando de agente para "nueva conversacion" (Cmd+Opt+J y panes de presets con "agent")
 agent_command = "claude --dangerously-skip-permissions"
@@ -466,11 +467,11 @@ toggle_markdown = "primary+shift+m"
 toggle_theme = "primary+shift+t"       # alterna paleta papel ⇄ arbrain (claro ⇄ oscuro)
 expand_leaf = "primary+shift+e"        # el campo enfocado se queda con TODA la pantalla; otra vez, vuelve exacto
 
-# ---- Presets agenticos: comandos auto-lanzados al abrir en frio ----
+# ---- Presets opcionales: solo se ejecutan al elegirlos expresamente ----
 # panes: un campo por comando. "" = shell libre. "agent" = general.agent_command
 # 1 pane = pantalla completa; 2-3 = lado a lado; 4+ = dos filas
-# kickoff (opcional): comando de shell (cwd = root) cuyo stdout se manda como
-# PRIMER prompt al primer pane "agent" cuando este listo. Ej:
+# kickoff (opcional): al elegir el preset, corre un comando shell (cwd = root)
+# y manda su stdout como PRIMER prompt al primer pane "agent". Ej:
 #   kickoff = "cat .claude/now.md"   → el agente abre ya sabiendo que toca hoy
 [[presets]]
 name = "business-os"

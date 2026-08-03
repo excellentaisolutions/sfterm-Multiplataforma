@@ -24,6 +24,13 @@ export function pathDirname(value: string): string {
   return path.slice(0, index);
 }
 
+/** La vista Archivos sigue la carpeta de la terminal enfocada. Si no hay una
+ * terminal activa (por ejemplo, al enfocar un visor), conserva la raiz del
+ * proyecto como fallback estable. */
+export function currentExplorerRoot(projectRoot: string, focusedCwd?: string | null): string {
+  return focusedCwd?.trim() ? focusedCwd : projectRoot;
+}
+
 /** Ruta relativa con separadores Git (`/`), o el valor intacto si queda fuera. */
 export function pathRelative(root: string, value: string): string {
   const base = root.replace(/\\/g, "/").replace(/\/+$/, "");

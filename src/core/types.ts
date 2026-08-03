@@ -55,7 +55,7 @@ export interface Preset {
   layout?: number;
   panes: string[];
   /** comando de shell (cwd = root): su stdout se manda como PRIMER prompt al
-   *  primer pane "agent" cuando este listo. El morning briefing automatico. */
+   * primer pane "agent" cuando el usuario elige el preset expresamente. */
   kickoff?: string;
 }
 

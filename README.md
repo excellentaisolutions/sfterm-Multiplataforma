@@ -108,9 +108,9 @@ Tres superficies en una app de ~17MB que usa ~90MB de RAM:
    100% local (whisper) y cada respuesta se puede ESCUCHAR con la voz del sistema
    siguiendo la palabra exacta.
 2. **Multiplexor de terminales REALES (el taller)** — rail de conversaciones, splits por
-   drag & drop, árbol de archivos git-aware, visor universal solo-lectura, presets
-   agénticos (abres la app y tus agentes ya están corriendo, con kickoff automático de
-   prompt).
+   drag & drop, árbol de archivos ligado a la ruta actual de la terminal, visor universal
+   solo-lectura y presets agénticos bajo demanda. El arranque abre una shell inactiva: no
+   ejecuta comandos ni envía prompts hasta que tú lo pidas.
 3. **Motor de terminal PROPIO en Rust** (`renderer = "own"`) — parser VT (crate vte) + grid
    + scrollback viven en Rust; el frontend solo pinta un canvas. Cada comando es un **bloque**
    (OSC 133) con exit code, duración, re-run ↻ y botón ☰ que abre su output como documento
@@ -270,7 +270,8 @@ Guía completa para agentes (schema del config, arquitectura, reglas duras):
 `~/.config/sfterm` en macOS, con hot-reload y comentarios preservados
 (toml_edit). El estado ligado a la máquina se guarda en
 `%LOCALAPPDATA%\SFTerm`. Temas, fuentes, atajos remapeables y presets agénticos
-con kickoff. Schema completo en [CLAUDE.md](CLAUDE.md).
+opcionales; sus comandos y kickoff solo se ejecutan al elegir el preset expresamente.
+Schema completo en [CLAUDE.md](CLAUDE.md).
 
 ## Arquitectura (mapa rápido)
 
