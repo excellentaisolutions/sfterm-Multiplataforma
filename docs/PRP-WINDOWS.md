@@ -114,7 +114,7 @@ Contratos iniciales:
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
 | 2. Terminal Windows | En curso | ConPTY 5.1/7, Claude, Codex, Vim, OSC, resize, Unicode, paste, Ctrl+C/Break e IME automatizado validados; IME manual y renderer pendientes |
 | 3. Daemon persistente | Completada | TUI/replay sobreviven reconexión y rebuild; cliente lento, cierre del árbol y aislamiento entre configs verdes |
-| 4. Navegador WebView2 | Pendiente | Gate completo contra navegador |
+| 4. Navegador WebView2 | Completada | Host aislado y gate completo verificados E2E contra WebView2 real |
 | 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
 | 6. Atajos, ventana y voz | Pendiente | UX Windows y captura WASAPI |
 | 7. Distribución | Pendiente | NSIS/MSI firmados y updater |
@@ -455,6 +455,30 @@ Contratos iniciales:
   en 220,9 s.
 - Los cinco criterios de aceptación de la Fase 3 quedan cubiertos por evidencia
   E2E reproducible; la fase pasa a completada.
+
+#### 2026-08-03 — Host WebView2 aislado y E2E de Fase 4
+
+- Sustituido el adaptador pendiente por un WebView2 real creado mediante Wry
+  como child HWND de la ventana principal. El contenido externo usa un
+  `WebContext` persistente propio en el state dir y no recibe webview Tauri,
+  custom protocol, host object ni handler IPC.
+- Implementados navegación y estado, eval, historial, zoom, UA móvil/escritorio,
+  bounds, backstage, apertura de ventanas en el mismo panel, diálogos diferidos,
+  upload sin selector nativo, descargas, limpieza de datos, `CapturePreview`,
+  captura full-page y `PrintToPdf`.
+- El gate se condujo contra WebView2 real con una fixture HTTP: `read`, `type`,
+  `click`, `upload`, prompt, descarga, móvil, snap, fullsnap y PDF quedaron
+  verdes. Los PNG se inspeccionaron visualmente y el PDF generado es válido.
+- La prueba desde la página confirmó que `window.__TAURI_INTERNALS__` no existe.
+  Wry conserva su objeto de compatibilidad `window.ipc`, pero queda inerte al no
+  registrar handler; por tanto no existe una ruta desde contenido externo a
+  comandos Tauri.
+- Se verificaron limpieza efectiva de cookie/localStorage y el manejo de
+  `target="_blank"`. La propiedad por conversación y la selección de pestaña
+  activa continúan cubiertas por la suite frontend; todos los navegadores usan
+  el perfil WebView2 común separado del perfil privilegiado de Tauri.
+- Windows anuncia ahora `browser_host` y `window_capture` disponibles. Voz
+  permanece deshabilitada explícitamente hasta la Fase 6.
 
 ## 6. Fases de implementación
 

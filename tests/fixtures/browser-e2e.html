@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es">
+  <head><meta charset="utf-8"><title>WinTerm WebView2 E2E</title></head>
+  <body>
+    <h1>WebView2 aislado</h1>
+    <label>Nombre <input id="name" placeholder="nombre"></label>
+    <button id="write" onclick="document.querySelector('#result').textContent=document.querySelector('#name').value">Guardar</button>
+    <output id="result"></output>
+    <input id="upload" type="file">
+    <button id="dialog" onclick="window.__answer=prompt('Código','base')">Diálogo</button>
+    <a id="download" href="browser-download.txt" download>Descargar</a>
+    <a id="popup" href="browser-download.txt" target="_blank">Abrir ventana</a>
+    <script>window.__pageReady = true;</script>
+  </body>
+</html>

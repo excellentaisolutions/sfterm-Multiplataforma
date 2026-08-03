@@ -43,18 +43,12 @@ pub fn platform_capabilities() -> PlatformCapabilities {
     {
         PlatformCapabilities {
             os: "windows",
-            browser_host: FeatureCapability::new(
-                false,
-                Some("el host WebView2 se implementará en la Fase 4"),
-            ),
+            browser_host: FeatureCapability::new(true, None),
             voice_capture: FeatureCapability::new(
                 false,
                 Some("la captura WASAPI se implementará en la Fase 6"),
             ),
-            window_capture: FeatureCapability::new(
-                false,
-                Some("la captura de ventana WebView2 se implementará en la Fase 4"),
-            ),
+            window_capture: FeatureCapability::new(true, None),
         }
     }
 
@@ -96,5 +90,14 @@ mod tests {
         ] {
             assert!(feature.available || feature.reason.is_some_and(|reason| !reason.is_empty()));
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_exposes_webview2_browser_and_capture() {
+        let capabilities = platform_capabilities();
+        assert!(capabilities.browser_host.available);
+        assert!(capabilities.window_capture.available);
+        assert!(!capabilities.voice_capture.available);
     }
 }

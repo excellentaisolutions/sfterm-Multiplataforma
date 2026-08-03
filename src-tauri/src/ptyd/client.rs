@@ -270,7 +270,7 @@ pub(crate) fn daemon_executable_from(
     let target = dir.join("sfterm-ptyd.exe");
     if !target.exists() {
         let temporary = dir.join(format!("sfterm-ptyd-{}.tmp", std::process::id()));
-        std::fs::copy(&source, &temporary)?;
+        std::fs::copy(source, &temporary)?;
         match std::fs::rename(&temporary, &target) {
             Ok(()) => {}
             Err(_error) if target.exists() => {

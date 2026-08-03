@@ -61,10 +61,11 @@ Verbos de DIRECTOR (Levy pinta la pantalla de Daniel):
   search     → {q, n?} busqueda por CONTENIDO en el proyecto (como ⌘⇧F)
 
 NAVEGADOR DEL AGENTE (ojos y manos sobre la web, dentro de la app):
-  Un WKWebView REAL como panel del tiling (no iframe: github y cia cargan
+  Un webview NATIVO (WKWebView en macOS, WebView2 en Windows) como panel del
+  tiling (no iframe: github y cia cargan
   normal). VALVULA DE UNA VIA: la pagina jamas gana un canal hacia la app
   (cero IPC); Daniel y el agente SI tienen el puente entero (file://,
-  descargas, historial, cuerpos de red). UA de Safari real (Google login OK).
+  descargas, historial, cuerpos de red). UA nativo de cada plataforma.
   UNO solo: lo que el agente navega es exactamente lo que Daniel contempla.
   El lazo: browser_open → browser_read/browser_snap → browser_click/type → …
   browser_open   → {url?} abre (o enfoca) el navegador; con url navega y
@@ -90,8 +91,8 @@ NAVEGADOR DEL AGENTE (ojos y manos sobre la web, dentro de la app):
   browser_type   → {text, + cualquier forma de señalar, submit?} escribe en un
                    campo (React-safe). Sin señal busca el primer campo de texto
   browser_upload → {paths[], + como señalar el campo?} SUBE ARCHIVOS sin
-                   dialogo nativo: las rutas se le contestan al panel que la
-                   pagina abre. Es el setInputFiles de Playwright
+                   dialogo nativo: el adaptador construye la selección dentro
+                   del panel. Es el setInputFiles de Playwright
   browser_pdf    → {path?} PDF de la pagina completa, paginado por el motor de
                    impresion de WebKit (no es una foto: es texto seleccionable)
   browser_scroll → {dy} px (negativo = arriba)
@@ -107,7 +108,7 @@ NAVEGADOR DEL AGENTE (ojos y manos sobre la web, dentro de la app):
                    ({timeout_ms?} default 45000). Esc o navegar = cancelado
   browser_console→ {n?} CONSOLA de la pagina: console.* + excepciones +
                    rejections, capturados por hook en documentStart de cada
-                   navegacion (WKUserScript) → {entries: [{t, level, text}]}
+                   navegación (script document-start) → {entries: [{t, level, text}]}
   browser_net    → {n?} RED de la pagina: fetch/XHR con metodo, url, status,
                    ok y duracion → {requests: [...]}. {bodies: true} incluye
                    el CUERPO de las respuestas json/text (cap 2KB c/u) — para
@@ -140,8 +141,8 @@ NAVEGADOR DEL AGENTE (ojos y manos sobre la web, dentro de la app):
                    landing abre logueada y nunca ve su onboarding)
   browser_close  → cierra navegador y pestaña
   Atajos de Daniel DENTRO de la pagina (los captura el hook, la app no los
-  ve): ⌘L barra/url · ⌘R recargar · ⌘F buscar · ⌘[/⌘] atras/adelante ·
-  ⌘+/−/0 zoom del contenido.
+  ve): Cmd en macOS o Ctrl en Windows + L barra/url · R recargar · F buscar ·
+  [/ ] atrás/adelante · +/−/0 zoom del contenido.
 
 SOURCE CONTROL espejo (28 jul 2026 — el repo como datos, todo LECTURA;
   root default = el arbol activo, {root} lo cambia):

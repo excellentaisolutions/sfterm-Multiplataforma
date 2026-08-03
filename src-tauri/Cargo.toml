@@ -41,3 +41,18 @@ objc2 = "0.6.4"
 objc2-web-kit = "0.3.2"
 objc2-app-kit = "0.3.2"
 objc2-foundation = "0.3.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# Wry is used directly for the unprivileged agent browser.  Unlike a Tauri
+# webview it has no IPC handler, so arbitrary pages never receive a bridge to
+# application commands.  Keep this aligned with the version already selected
+# by the Tauri runtime.
+wry = "0.55.1"
+webview2-com = "0.38.2"
+base64 = "0.22.1"
+windows = { version = "0.61.3", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_UI_Shell",
+] }

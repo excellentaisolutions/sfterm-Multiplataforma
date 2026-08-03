@@ -40,16 +40,17 @@ implementación, estado y criterios de aceptación vive en el
 | WIN-003 | Dependencias Objective-C, AppKit, WebKit y `font-kit` se resolvían también para Windows. | Dependencias por target y frontera explícita de adaptadores macOS/Windows. | Corregido; `cargo check`, Clippy estricto y tests Rust verdes en ambos sistemas. |
 | WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Matriz 5.1/7 con Claude, Codex, Vim, DSR, resize, Unicode y contratos OSC verde en CI. |
 | WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Matriz ConPTY 5.1/7 verifica Ctrl+C, Ctrl+Break y supervivencia del shell. |
-| WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Primitivas Win32 verificadas; E2E completo pendiente. |
+| WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Corregido; los cinco E2E de persistencia, aislamiento, backpressure, cierre y rebuild están verdes. |
 | WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 69 tests frontend, incluidos casos drive y UNC. |
 | WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente y etiquetas Explorer/Finder dinámicas. | Implementado con pruebas Rust añadidas. |
 | WIN-009 | Comandos para reanudar agentes y crear worktrees emitían sintaxis POSIX bajo PowerShell. | Generación por familia de shell, comillas literales seguras y propagación de stderr/exit code. | Tests de quoting PowerShell/POSIX verdes. |
+| WIN-010 | El navegador del agente dependía exclusivamente de WKWebView y no existía un host Windows seguro. | WebView2 child HWND mediante Wry, perfil separado y sin bridge IPC de Tauri, con callbacks nativos de diálogos, descargas, captura y PDF. | Gate completo verificado E2E contra WebView2 real; Fase 4 completada. |
 | CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
 | CORE-002 | La cola del daemon se declaraba limitada pero era ilimitada; el writer retenía su propio `Sender` tras desconexión. | Cola acotada no bloqueante y eliminación de la autorreferencia que retenía hilo/handle. | Corregido en `src-tauri/src/ptyd/server.rs`. |
 | CORE-003 | La base Rust no cumplía `cargo fmt`, haciendo fallar un gate estándar antes de compilar. | Normalización completa con Rust 1.97.0 y comprobación obligatoria en CI. | Formato y Clippy estricto verdes en Windows y macOS. |
 | CORE-004 | Las capturas de terminal se parseaban solo con LF; un checkout Windows convertía fixtures a CRLF y anulaba todos los perfiles anclados. | Normalización CRLF/CR en el parser y EOL canónico para fixtures reales. | Caso CRLF específico añadido; suite 69/69. |
 | CORE-005 | Varias pruebas nativas asumían rutas macOS y la prueba ConPTY podía esperar indefinidamente sin contestar la consulta DSR de PowerShell. | Expectativas por plataforma, separadores canónicos, timeouts y respuesta DSR igual a la del motor real. | Suite Windows estable; cero fallos ni esperas indefinidas. |
-| CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | En Windows el navegador queda deshabilitado con una razón explícita; contrato cubierto por test Rust. |
+| CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | Contrato cubierto por test Rust; navegador y captura se anuncian disponibles en Windows tras completar WebView2. |
 | CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
 | CORE-008 | En el modo daemon predeterminado, Ctrl+Break no consultaba el proceso foreground y degradaba silenciosamente a Ctrl+C. | El bridge obtiene el PID foreground del daemon y aplica la misma terminación segura que el backend local, sin seleccionar nunca el shell ni los PID reservados 0/-1. | Prueba ConPTY real y test unitario verdes en Windows. |
 | CORE-009 | El renderer propio consultaba `isComposing` en el `<textarea>` en vez del `InputEvent`; un IME podía filtrar preediciones, duplicar el texto confirmado o adelantar Enter. | Estado de composición compartido, bloqueo de la tecla virtual 229 y flush diferido compatible con WebView2/WebKit. | Secuencias IME adversariales y paste bracketed multilínea/Unicode verdes. |
@@ -72,7 +73,7 @@ los cuatro jobs de frontend y backend nativo finalizaron correctamente en
 `windows-latest` y `macos-latest`, incluidos formato, `cargo check`, Clippy con
 warnings como error y la suite Rust.
 
-Las áreas todavía no cerradas —WebView2 completo, daemon E2E, atajos/ventana,
+Las áreas todavía no cerradas —paridad visual/IME de terminal, atajos/ventana,
 voz, instaladores firmados y hardening final— permanecen marcadas como
 pendientes o en curso en el PRP; este repositorio evita declarar paridad sin
 evidencia reproducible.
@@ -279,7 +280,7 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows base de `cargo test` descubre 99 tests: 92 superados y 7 E2E
+La suite Windows base de `cargo test` descubre 101 tests: 94 superados y 7 E2E
 ignorados de forma explícita. Los cinco E2E del daemon incluidos en
 `npm run test:ptyd-e2e:windows` se habilitan por separado y pasan sobre Named
 Pipe/ConPTY reales: TUI/replay tras reconexión, cierre sin huérfanos, aislamiento
