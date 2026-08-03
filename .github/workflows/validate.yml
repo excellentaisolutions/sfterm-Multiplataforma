@@ -27,6 +27,7 @@ jobs:
       # attributable from the Actions job without downloading private logs.
       - run: npm run lint
       - run: npm test
+      - run: npm run check:distribution
       - run: npm run build
 
   native-macos:

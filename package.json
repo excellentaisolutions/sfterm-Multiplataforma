@@ -23,6 +23,10 @@
     "test:ptyd-primitives:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-ptyd-primitives.ps1",
     "test:ptyd-e2e:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-ptyd-e2e.ps1",
     "test:voice-e2e:windows": "node scripts/run-with-project-target.mjs cargo test --manifest-path src-tauri/Cargo.toml --locked --offline wasapi_captura_muestras_del_microfono_real -- --ignored --nocapture",
+    "check:distribution": "node scripts/check-distribution-config.mjs",
+    "release:config": "node scripts/prepare-release-config.mjs",
+    "release:sbom": "node scripts/generate-sbom.mjs",
+    "release:verify:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release-artifacts.ps1",
     "env:check": "node scripts/check-environment.mjs",
     "cargo:doctor": "node scripts/check-cargo.mjs",
     "cargo:doctor:online": "node scripts/check-cargo.mjs --online",
@@ -33,8 +37,8 @@
     "test:rust": "node scripts/run-with-project-target.mjs cargo test --manifest-path src-tauri/Cargo.toml --locked --quiet",
     "test:rust:offline": "node scripts/run-with-project-target.mjs cargo test --manifest-path src-tauri/Cargo.toml --locked --offline --quiet",
     "validate:frontend": "npm run lint && npm run test && npm run build",
-    "validate:windows": "npm run validate:frontend && npm run check:platform-boundaries && npm run check:rust:offline && npm run test:rust:offline && npm run test:shell:windows && npm run test:process-tree:windows && npm run test:ptyd-primitives:windows && npm run test:ptyd-e2e:windows",
-    "validate": "npm run validate:frontend && npm run check:platform-boundaries && npm run test:rust"
+    "validate:windows": "npm run validate:frontend && npm run check:platform-boundaries && npm run check:distribution && npm run check:rust:offline && npm run test:rust:offline && npm run test:shell:windows && npm run test:process-tree:windows && npm run test:ptyd-primitives:windows && npm run test:ptyd-e2e:windows",
+    "validate": "npm run validate:frontend && npm run check:platform-boundaries && npm run check:distribution && npm run test:rust"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

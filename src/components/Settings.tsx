@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { useStore } from "../core/store";
 import * as ipc from "../core/ipc";
 import * as actions from "../core/actions";
@@ -24,7 +25,7 @@ export default function Settings() {
   const open = useStore((s) => s.ui.settings);
   const config = useStore((s) => s.config);
   const [fonts, setFonts] = useState<{ all: string[]; mono: string[] }>({ all: [], mono: [] });
-  const [tab, setTab] = useState<"general" | "atajos">("general");
+  const [tab, setTab] = useState<"general" | "atajos" | "actualizaciones">("general");
 
   useEffect(() => {
     if (open) void ipc.fontsList().then(setFonts);
@@ -63,6 +64,9 @@ export default function Settings() {
           </button>
           <button className={`settings-tab ${tab === "atajos" ? "on" : ""}`} onClick={() => setTab("atajos")}>
             Atajos
+          </button>
+          <button className={`settings-tab ${tab === "actualizaciones" ? "on" : ""}`} onClick={() => setTab("actualizaciones")}>
+            Actualizaciones
           </button>
         </div>
 
@@ -135,6 +139,90 @@ export default function Settings() {
         )}
 
         {tab === "atajos" && <AtajosTab keys={config.keys} />}
+        {tab === "actualizaciones" && <ActualizacionesTab />}
+      </div>
+    </div>
+  );
+}
+
+function ActualizacionesTab() {
+  const [current, setCurrent] = useState("...");
+  const [pending, setPending] = useState<ipc.UpdateMetadata | null>(null);
+  const [status, setStatus] = useState("Listo para comprobar el canal estable.");
+  const [busy, setBusy] = useState(false);
+  const [downloaded, setDownloaded] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    void getVersion().then(setCurrent).catch(() => setCurrent("desconocida"));
+  }, []);
+
+  const check = async () => {
+    setBusy(true);
+    setPending(null);
+    setStatus("Comprobando firma y versión...");
+    try {
+      const update = await ipc.updateCheck();
+      setPending(update);
+      setStatus(update ? `Versión ${update.version} disponible.` : "SFTerm está actualizado.");
+    } catch (error) {
+      setStatus(`No se pudo consultar el canal: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const install = async () => {
+    setBusy(true);
+    setDownloaded(0);
+    setTotal(null);
+    setStatus("Descargando actualización firmada...");
+    try {
+      await ipc.updateInstall((event) => {
+        if (event.event === "Started") setTotal(event.data.contentLength);
+        if (event.event === "Progress") setDownloaded((value) => value + event.data.chunkLength);
+        if (event.event === "Finished") setStatus("Descarga verificada; iniciando instalador...");
+      });
+      setStatus("Actualización instalada. SFTerm se cerrará para completar el cambio.");
+    } catch (error) {
+      setStatus(`La actualización no se instaló: ${String(error)}`);
+      setBusy(false);
+    }
+  };
+
+  const progress = total && total > 0 ? Math.min(100, Math.round(downloaded * 100 / total)) : null;
+
+  return (
+    <div className="updates-tab">
+      <div className="settings-section">Canal estable</div>
+      <div className="appearance-row">
+        <label>Versión instalada</label>
+        <code>{current}</code>
+      </div>
+      {pending && (
+        <div className="appearance-row">
+          <label>Versión disponible</label>
+          <strong>{pending.version}</strong>
+        </div>
+      )}
+      <div className="appearance-row">
+        <label>Estado</label>
+        <span className="note">{status}</span>
+      </div>
+      {progress !== null && (
+        <div className="appearance-row">
+          <label>Descarga</label>
+          <progress value={progress} max={100}>{progress}%</progress>
+          <span className="note">{progress}%</span>
+        </div>
+      )}
+      <div className="appearance-row">
+        <label></label>
+        <button disabled={busy} onClick={() => void check()}>Comprobar ahora</button>
+        {pending && <button disabled={busy} onClick={() => void install()}>Instalar y reiniciar</button>}
+      </div>
+      <div className="appearance-foot">
+        Cada paquete se valida con la clave pública integrada antes de ejecutarse. Las terminales del daemon permanecen vivas durante el cambio.
       </div>
     </div>
   );

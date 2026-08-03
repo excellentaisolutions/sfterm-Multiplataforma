@@ -128,6 +128,26 @@ export const ptyResize = (id: number, cols: number, rows: number) =>
 /** ⌘R: relanza la app completa (proceso nuevo → toma el build recien
  *  instalado; la sesion se restaura como en cualquier arranque). */
 export const appRelaunch = () => invoke<void>("app_relaunch");
+
+export interface UpdateMetadata {
+  version: string;
+  currentVersion: string;
+  body: string | null;
+  date: string | null;
+}
+
+export type UpdateDownloadEvent =
+  | { event: "Started"; data: { contentLength: number | null } }
+  | { event: "Progress"; data: { chunkLength: number } }
+  | { event: "Finished" };
+
+export const updateCheck = () => invoke<UpdateMetadata | null>("update_check");
+
+export async function updateInstall(onEvent: (event: UpdateDownloadEvent) => void): Promise<void> {
+  const channel = new Channel<UpdateDownloadEvent>();
+  channel.onmessage = onEvent;
+  return invoke<void>("update_install", { onEvent: channel });
+}
 export const ptyKill = (id: number) => invoke<void>("pty_kill", { id });
 export const ptyKillAll = () => invoke<void>("pty_kill_all");
 /** La sesion de Claude Code que corre DE VERDAD en el PTY (verdad del piso:

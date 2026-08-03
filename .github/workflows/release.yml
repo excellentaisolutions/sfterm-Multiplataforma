@@ -1,0 +1,95 @@
+name: release-windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm run validate:frontend
+      - run: npm run check:distribution
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Import Authenticode certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) { throw "Missing WINDOWS_CERTIFICATE" }
+          $pfx = Join-Path $env:RUNNER_TEMP "sfterm-codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $imported = @(Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password)
+          Remove-Item -LiteralPath $pfx -Force
+          $certificate = $imported | Where-Object HasPrivateKey | Select-Object -First 1
+          if (-not $certificate) { throw "PFX contains no certificate with a private key" }
+          "WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Prepare signed updater configuration
+        env:
+          SFTERM_UPDATER_PUBKEY: ${{ vars.SFTERM_UPDATER_PUBKEY }}
+        run: npm run release:config
+
+      - id: publish
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: SFTerm v__VERSION__
+          releaseBody: Instaladores Windows x64 firmados. Verifica SHA256SUMS antes del despliegue corporativo.
+          releaseDraft: true
+          prerelease: false
+          generateReleaseNotes: true
+          updaterJsonPreferNsis: true
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          args: --target x86_64-pc-windows-msvc --config src-tauri/target/release-config.json
+
+      - name: Verify and inventory release artifacts
+        run: |
+          npm run release:verify:windows
+          npm run release:sbom
+
+      - name: Attach SBOM and checksums to draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ steps.publish.outputs.appVersion }}" artifacts/sfterm.cdx.json artifacts/SHA256SUMS --clobber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sfterm-windows-x64-evidence
+          path: |
+            artifacts/sfterm.cdx.json
+            artifacts/SHA256SUMS
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*
+          if-no-files-found: error

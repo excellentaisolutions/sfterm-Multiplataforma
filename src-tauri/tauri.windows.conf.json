@@ -18,12 +18,16 @@
     ]
   },
   "bundle": {
-    "targets": ["nsis"],
+    "targets": ["nsis", "msi"],
     "windows": {
       "allowDowngrades": false,
       "webviewInstallMode": {
         "type": "embedBootstrapper",
         "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Spanish", "English"]
       }
     }
   }

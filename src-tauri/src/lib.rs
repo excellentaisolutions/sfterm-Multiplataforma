@@ -1,3 +1,4 @@
+mod app_updates;
 mod attach;
 #[cfg(target_os = "macos")]
 mod browser;
@@ -73,6 +74,8 @@ pub fn run() {
         }))
     };
     builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(app_updates::PendingUpdate::default())
         .manage(pty::PtyState::default())
         .manage(engine::EngineState::default())
         .manage(voice::VoiceState::default())
@@ -84,6 +87,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             app_relaunch,
+            app_updates::update_check,
+            app_updates::update_install,
             debug_harness::debug_harness_result,
             platform::platform_capabilities,
             pty::pty_spawn,

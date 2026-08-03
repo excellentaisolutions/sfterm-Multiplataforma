@@ -32,6 +32,7 @@ toml = "1.0.7"
 vte = "0.15"
 unicode-width = "0.2"
 tauri-plugin-single-instance = "2.4.3"
+tauri-plugin-updater = "2.10.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6.2"

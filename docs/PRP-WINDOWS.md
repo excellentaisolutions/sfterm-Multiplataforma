@@ -117,7 +117,7 @@ Contratos iniciales:
 | 4. Navegador WebView2 | Completada | Host aislado y gate completo verificados E2E contra WebView2 real |
 | 5. Filesystem y paths | Completada | Drive/UNC/Unicode, AppData y migración verdes; ShellExecuteW, IFileOperation recuperable y guardas contra junctions verificados |
 | 6. Atajos, ventana y voz | Completada | `primary` multiplataforma, chrome HWND nativo, WASAPI/CPAL real y TTS WebView2 verificados; STT ausente se desactiva con diagnóstico |
-| 7. Distribución | Pendiente | NSIS/MSI firmados y updater |
+| 7. Distribución | En progreso | NSIS per-user + MSI, updater Rust/UI, rollback firmado y release/SBOM preparados; faltan claves, firma real y ciclos install/upgrade/uninstall |
 | 8. Hardening y release | Pendiente | Matriz E2E y auditoría de seguridad |
 
 ### Registro de ejecución
@@ -533,6 +533,23 @@ Contratos iniciales:
   TTS instalada funciona y la ausencia del stack STT se degrada explícitamente.
 - Se cumplen los criterios de aceptación de la Fase 6. La siguiente fase es
   distribución y actualización (Fase 7).
+
+### 3 de agosto de 2026 — Fase 7 en progreso
+
+- El override Windows genera NSIS per-user como canal principal y MSI para
+  despliegue corporativo; ambos conservan el bootstrapper Evergreen embebido.
+- El updater queda encapsulado detrás de comandos Rust, con progreso en la UI,
+  verificación de firma obligatoria y comparador que permite rollback firmado.
+- Se añadió un workflow de release x64 en borrador con Authenticode + timestamp,
+  firmas del updater, `latest.json`, SBOM CycloneDX y manifiesto SHA-256.
+- Un build release real produjo `SFTerm_0.1.0_x64-setup.exe` (8.224.993 bytes)
+  y `SFTerm_0.1.0_x64_en-US.msi` (10.452.992 bytes). Una clave efímera verificó
+  la generación de ambas firmas `.sig`; después se eliminó del workspace.
+- `npm run validate:windows` quedó verde: 74 tests frontend, 100 Rust, límites
+  de plataforma, PowerShell, árbol de procesos, primitivas y cinco E2E del daemon.
+- El canal no puede considerarse operativo mientras el repositorio privado no
+  exponga `latest.json` y los assets a clientes anónimos. También faltan las
+  credenciales reales y los ciclos E2E de instalación, upgrade y desinstalación.
 
 ## 6. Fases de implementación
 
