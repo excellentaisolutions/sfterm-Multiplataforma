@@ -11,6 +11,25 @@ fn feed(t: &mut Term, p: &mut vte::Parser, s: &str) {
     p.advance(t, s.as_bytes());
 }
 
+#[test]
+fn renderer_dom_y_propio_reciben_el_mismo_stream() {
+    let state = super::EngineState::default();
+    super::create(&state, 77, 40, 4, 100);
+    let session = super::get(&state, 77).expect("sesion del motor");
+    let stream = b"\x1b[32mparidad\x1b[0m \xc3\xb1_\xe7\x95\x8c\r\nsegunda";
+
+    let (responses, dom_bytes) = super::fanout_chunk(&session, stream);
+    assert!(responses.is_empty());
+    assert_eq!(
+        dom_bytes, stream,
+        "xterm/DOM debe recibir los bytes sin tocar"
+    );
+
+    let engine = session.lock().unwrap();
+    assert_eq!(engine.term.grid.screen().lines[0].text(), "paridad ñ_界");
+    assert_eq!(engine.term.grid.screen().lines[1].text(), "segunda");
+}
+
 fn line(t: &Term, y: usize) -> String {
     t.grid.screen().lines[y].text()
 }

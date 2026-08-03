@@ -96,6 +96,15 @@ pub fn feed(session: &Arc<Mutex<EngineSession>>, bytes: &[u8]) -> Vec<u8> {
     std::mem::take(&mut s.term.responses)
 }
 
+/// Tee único del output del PTY: el motor propio consume exactamente el mismo
+/// slice que se clona para el renderer DOM. Devolver ambos productos juntos
+/// impide que los caminos local y daemon normalicen, recorten o reordenen uno
+/// de los renderers de forma independiente.
+pub fn fanout_chunk(session: &Arc<Mutex<EngineSession>>, bytes: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    let responses = feed(session, bytes);
+    (responses, bytes.to_vec())
+}
+
 pub fn resize(state: &EngineState, id: u32, cols: usize, rows: usize) {
     if let Some(session) = get(state, id) {
         let mut s = session.lock().unwrap();

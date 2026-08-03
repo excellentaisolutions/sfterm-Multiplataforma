@@ -25,7 +25,7 @@ def load_events(since_ms: float) -> list[dict]:
     for p in (ROTATED, EVENTS):
         if not p.exists():
             continue
-        for ln in p.read_text().splitlines():
+        for ln in p.read_text(encoding="utf-8").splitlines():
             try:
                 e = json.loads(ln)
             except json.JSONDecodeError:

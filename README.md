@@ -41,8 +41,8 @@ implementación, estado y criterios de aceptación vive en el
 | WIN-004 | El terminal asumía zsh, señales Unix y shell integration macOS. | ConPTY, selección PowerShell 7/5.1 y perfil OSC 7/133/633 aislado sin modificar `$PROFILE`. | Matriz 5.1/7 con Claude, Codex, Vim, DSR, resize, Unicode y contratos OSC verde en CI. |
 | WIN-005 | Foreground, interrupciones y cierre de descendientes no tenían semántica Windows. | Snapshot de procesos, ETX para Ctrl+C, Ctrl+Break dedicado y terminación segura del árbol. | Matriz ConPTY 5.1/7 verifica Ctrl+C, Ctrl+Break y supervivencia del shell. |
 | WIN-006 | El daemon usaba Unix sockets; ejecutar el daemon desde el EXE instalable bloquearía updates en Windows. | Named Pipes con DACL, Job Objects, replay compartido y copia versionada en LocalAppData. | Corregido; los cinco E2E de persistencia, aislamiento, backpressure, cierre y rebuild están verdes. |
-| WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 69 tests frontend, incluidos casos drive y UNC. |
-| WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente y etiquetas Explorer/Finder dinámicas. | Implementado con pruebas Rust añadidas. |
+| WIN-007 | Paths tratados mediante `split("/")`, drops solo POSIX y rutas temporales `/tmp`. | Helpers drive/UNC/POSIX, CRLF drag/drop, temp del sistema y quoting por shell. | 69 tests frontend, incluidos drive, UNC, espacios y Unicode. |
+| WIN-008 | Configuración, estado y textos asumían `~/.config`, Finder y layout macOS; la Papelera Windows dependía de un proceso PowerShell. | `%APPDATA%`/`%LOCALAPPDATA%`, migración legacy idempotente, etiquetas nativas, `ShellExecuteW` e `IFileOperation` recuperable sin shell. | Pruebas Rust de migración y guardas verdes; E2E real de Papelera superado. |
 | WIN-009 | Comandos para reanudar agentes y crear worktrees emitían sintaxis POSIX bajo PowerShell. | Generación por familia de shell, comillas literales seguras y propagación de stderr/exit code. | Tests de quoting PowerShell/POSIX verdes. |
 | WIN-010 | El navegador del agente dependía exclusivamente de WKWebView y no existía un host Windows seguro. | WebView2 child HWND mediante Wry, perfil separado y sin bridge IPC de Tauri, con callbacks nativos de diálogos, descargas, captura y PDF. | Gate completo verificado E2E contra WebView2 real; Fase 4 completada. |
 | CORE-001 | La validación inicial descubrió una llave de función ausente que impedía compilar el frontend. | Se corrigió el bloque y se añadió el build TypeScript al pipeline obligatorio. | Corregido y cubierto por CI. |
@@ -53,7 +53,8 @@ implementación, estado y criterios de aceptación vive en el
 | CORE-006 | La UI no disponía del contrato `platform_capabilities` previsto en el PRP y podía intentar abrir adaptadores aún pendientes. | Capacidades tipadas desde Rust, cargadas en el boot y aplicadas antes de mutar el layout. | Contrato cubierto por test Rust; navegador y captura se anuncian disponibles en Windows tras completar WebView2. |
 | CORE-007 | Operaciones nativas de AppKit, Explorer, PowerShell, zsh y registro de fuentes permanecían dispersas dentro de módulos neutrales. | Adaptadores `platform/desktop`, `platform/fonts`, `platform/permissions` y `platform/shell`, más un verificador que impide regresiones. | Fronteras verificadas en CI Windows/macOS; Fase 1 completada. |
 | CORE-008 | En el modo daemon predeterminado, Ctrl+Break no consultaba el proceso foreground y degradaba silenciosamente a Ctrl+C. | El bridge obtiene el PID foreground del daemon y aplica la misma terminación segura que el backend local, sin seleccionar nunca el shell ni los PID reservados 0/-1. | Prueba ConPTY real y test unitario verdes en Windows. |
-| CORE-009 | El renderer propio consultaba `isComposing` en el `<textarea>` en vez del `InputEvent`; un IME podía filtrar preediciones, duplicar el texto confirmado o adelantar Enter. | Estado de composición compartido, bloqueo de la tecla virtual 229 y flush diferido compatible con WebView2/WebKit. | Secuencias IME adversariales y paste bracketed multilínea/Unicode verdes. |
+| CORE-009 | El renderer propio consultaba `isComposing` en el `<textarea>` en vez del `InputEvent`; un IME podía filtrar preediciones, duplicar el texto confirmado o adelantar Enter. | Estado de composición compartido, bloqueo de la tecla virtual 229, flush diferido y fanout único del stream PTY a ambos renderers. | Secuencias adversariales, composición física `´` + `a` en WebView2 y paridad byte a byte verdes. |
+| CORE-011 | Los clientes Python del gate heredaban cp1252 en Windows y fallaban al leer o imprimir JSON con Unicode del terminal. | Lectura, escritura y stdout UTF-8 explícitos en gate, bridge y digest. | Reproducido con `ñ_界` y corregido durante el E2E real del terminal. |
 | CORE-010 | La matriz ConPTY solo arrancaba PowerShell y no comprobaba launchers npm, alternate screen ni salida de agentes/TUI reales. | CI instala versiones fijadas de Claude/Codex y conduce ambos más Vim sin prompt ni consumo de API, exigiendo foreground estable, salida cooperativa, prompt restaurado y shell reutilizable. | Banco real verde en Windows limpio; matriz Rust completa en 8,85 s. |
 
 Para reproducir la evidencia actualmente disponible en Windows:
@@ -280,7 +281,7 @@ src/
   components/   Tiling, Rail, Tree, ChatView, Reader, Composer, Palette, …
 ```
 
-La suite Windows base de `cargo test` descubre 101 tests: 94 superados y 7 E2E
+La suite Windows base de `cargo test` descubre 103 tests: 96 superados y 7 E2E
 ignorados de forma explícita. Los cinco E2E del daemon incluidos en
 `npm run test:ptyd-e2e:windows` se habilitan por separado y pasan sobre Named
 Pipe/ConPTY reales: TUI/replay tras reconexión, cierre sin huérfanos, aislamiento

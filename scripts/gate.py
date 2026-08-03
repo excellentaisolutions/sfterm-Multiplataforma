@@ -199,6 +199,12 @@ import uuid
 if sys.version_info < (3, 10):
     sys.exit("gate.py necesita python 3.10+ (macOS trae 3.9): usa /opt/homebrew/bin/python3")
 
+# Windows hereda a menudo cp1252 aunque los archivos del gate son UTF-8.
+# Forzar también la salida evita que una terminal con CJK/emoji rompa el
+# cliente justo después de haber leído correctamente la respuesta JSON.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # SFTERM_CONFIG_DIR (banco de pruebas): mismo override que la app — un gate
 # redirigido habla con la instancia AISLADA, jamas con la que tiene las
 # conversaciones reales de Daniel.
@@ -239,13 +245,13 @@ def call(op: str, args: dict | None = None, timeout: float = 25.0) -> dict:
         if env_term.isdigit():
             payload["__term"] = int(env_term)
     # escritura atomica: que la app nunca lea un JSON a medias
-    tmp.write_text(json.dumps(payload, ensure_ascii=False))
+    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     os.rename(tmp, cmd)
     deadline = time.time() + timeout
     while time.time() < deadline:
         if res.exists():
             try:
-                out = json.loads(res.read_text())
+                out = json.loads(res.read_text(encoding="utf-8"))
             finally:
                 res.unlink(missing_ok=True)
             return out
@@ -294,16 +300,16 @@ def events_cmd(args: dict) -> None:
             return
     if "cursor" in args:
         cp = _cursor_path(str(args["cursor"]))
-        offset = int(cp.read_text() or "0") if cp.exists() else 0
+        offset = int(cp.read_text(encoding="utf-8") or "0") if cp.exists() else 0
         lines, new_offset = _read_new(offset)
         for ln in lines:
             print(ln)
-        cp.write_text(str(new_offset))
+        cp.write_text(str(new_offset), encoding="utf-8")
         return
     n = int(args.get("n", 20))
     if not EVENTS.exists():
         return
-    all_lines = [ln for ln in EVENTS.read_text().splitlines() if ln.strip()]
+    all_lines = [ln for ln in EVENTS.read_text(encoding="utf-8").splitlines() if ln.strip()]
     for ln in all_lines[-n:]:
         print(ln)
 

@@ -43,7 +43,7 @@ from gate import CONFIG_BASE, EVENTS, GATE, _cursor_path, _read_new  # noqa: E40
 # SFTERM_NERVIO_URL=... / SFTERM_NERVIO_TOKEN=... Env real gana sobre archivo.
 _ENV_FILE = CONFIG_BASE / "nervio.env"
 if _ENV_FILE.exists():
-    for _ln in _ENV_FILE.read_text().splitlines():
+    for _ln in _ENV_FILE.read_text(encoding="utf-8").splitlines():
         _ln = _ln.strip()
         if _ln and not _ln.startswith("#") and "=" in _ln:
             _k, _v = _ln.split("=", 1)
@@ -63,14 +63,14 @@ COOLDOWN_S = int(os.environ.get("SFTERM_NERVIO_QUIET_COOLDOWN_MIN", "10")) * 60
 def load_state() -> dict:
     if STATE.exists():
         try:
-            return json.loads(STATE.read_text())
+            return json.loads(STATE.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             pass
     return {"cooldowns": {}, "last_run": 0, "delivered_total": 0}
 
 
 def save_state(st: dict) -> None:
-    STATE.write_text(json.dumps(st, ensure_ascii=False, indent=1))
+    STATE.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def fmt_dur(ms) -> str:
@@ -175,7 +175,7 @@ def deliver(lines: list[str], dry: bool) -> None:
     with urllib.request.urlopen(req, timeout=180) as r:
         r.read()
         print(f"→ entregado al cerebro (HTTP {r.status})")
-    with DELIVERED_LOG.open("a") as f:
+    with DELIVERED_LOG.open("a", encoding="utf-8") as f:
         for ln in lines:
             f.write(f"{int(time.time())} {ln}\n")
 
@@ -184,7 +184,7 @@ def pass_once(dry: bool) -> int:
     st = load_state()
     now = time.time()
     cp = _cursor_path(CURSOR)
-    offset = int(cp.read_text() or "0") if cp.exists() else 0
+    offset = int(cp.read_text(encoding="utf-8") or "0") if cp.exists() else 0
     raw, new_offset = _read_new(offset)
     signals: list[str] = []
     for ln in raw:
@@ -205,7 +205,7 @@ def pass_once(dry: bool) -> int:
         # un dry-run mira SIN dejar huella: ni cursor ni cooldowns tocados
         st = load_state()
     else:
-        cp.write_text(str(new_offset))
+        cp.write_text(str(new_offset), encoding="utf-8")
     st["last_run"] = int(now)
     save_state(st)
     return len(signals)

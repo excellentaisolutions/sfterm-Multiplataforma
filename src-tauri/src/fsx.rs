@@ -506,7 +506,44 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// E2E de verdad contra Cocoa. `#[ignore]` a proposito: deja basura en la
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn trash_guard_bloquea_escape_por_symlink_y_conserva_el_enlace() {
+        let dir = std::env::temp_dir().join(format!("sfterm-trash-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root = dir.join("root con espacio");
+        let outside = dir.join("fuera-ñ");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("secreto.txt"), "intacto").unwrap();
+        // Un junction es un reparse point de directorio y no requiere el
+        // privilegio de symlink/Developer Mode. Las rutas viajan por variables,
+        // nunca interpoladas dentro del script de prueba.
+        let junction = root.join("portal");
+        crate::platform::desktop::create_test_junction(&junction, &outside)
+            .expect("junction NTFS disponible");
+
+        let root_canon = root.canonicalize().unwrap();
+        let s = |p: &std::path::Path| p.to_string_lossy().to_string();
+        assert_eq!(
+            trash_guard(&s(&root.join("portal/secreto.txt")), &root_canon),
+            Err("fuera del arbol abierto".into()),
+            "un directorio enlace no puede convertir contenido externo en hijo del root",
+        );
+        assert!(
+            trash_guard(&s(&root.join("portal")), &root_canon).is_ok(),
+            "el enlace mismo sí se puede mandar a la Papelera sin seguirlo",
+        );
+        assert_eq!(
+            std::fs::read_to_string(outside.join("secreto.txt")).unwrap(),
+            "intacto"
+        );
+        std::fs::remove_dir(&junction).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// E2E de verdad contra la Papelera nativa. `#[ignore]` a proposito: deja
+    /// dos fixtures recuperables en la
     /// Papelera de quien lo corra, no queremos eso en cada `npm run validate`.
     /// Correr a mano: `cargo test papelera -- --ignored --nocapture`
     #[test]
@@ -519,12 +556,21 @@ mod tests {
         std::fs::write(dir.join("suelto.txt"), "x").unwrap();
         let root = dir.to_string_lossy().to_string();
 
+        #[cfg(target_os = "macos")]
+        let outside = "/etc/hosts".to_string();
+        #[cfg(target_os = "windows")]
+        let outside = std::env::var("WINDIR")
+            .map(|dir| std::path::Path::new(&dir).join("System32/drivers/etc/hosts"))
+            .unwrap_or_else(|_| std::path::PathBuf::from(r"C:\Windows\System32\drivers\etc\hosts"))
+            .to_string_lossy()
+            .to_string();
+
         let res = fs_trash(
             vec![
                 dir.join("suelto.txt").to_string_lossy().to_string(),
                 dir.join("carpeta").to_string_lossy().to_string(),
-                root.clone(),        // la raiz: rechazada
-                "/etc/hosts".into(), // afuera: rechazado
+                root.clone(),    // la raiz: rechazada
+                outside.clone(), // afuera: rechazado
             ],
             root.clone(),
         );
@@ -543,7 +589,7 @@ mod tests {
         );
         assert!(dir.exists(), "el root sigue de pie");
         assert!(
-            std::path::Path::new("/etc/hosts").exists(),
+            std::path::Path::new(&outside).exists(),
             "nada fuera del root se toco"
         );
         let _ = std::fs::remove_dir_all(&dir);

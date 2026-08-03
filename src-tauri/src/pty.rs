@@ -315,10 +315,13 @@ pub fn pty_spawn(
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
                     if let Some(session) = &engine_session {
-                        let responses = crate::engine::feed(session, &buf[..n]);
+                        let (responses, dom_bytes) =
+                            crate::engine::fanout_chunk(session, &buf[..n]);
                         crate::engine::write_responses(&engine_writer, responses);
+                        let _ = on_data.send(InvokeResponseBody::Raw(dom_bytes));
+                    } else {
+                        let _ = on_data.send(InvokeResponseBody::Raw(buf[..n].to_vec()));
                     }
-                    let _ = on_data.send(InvokeResponseBody::Raw(buf[..n].to_vec()));
                 }
             }
         }

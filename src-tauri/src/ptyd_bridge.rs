@@ -138,8 +138,10 @@ fn drain_loop() {
                 if let Some(app) = &app {
                     let engine_state = app.state::<crate::engine::EngineState>();
                     if let Some(session) = crate::engine::get(&engine_state, term) {
-                        let responses = crate::engine::feed(&session, &bytes);
+                        let (responses, dom_bytes) = crate::engine::fanout_chunk(&session, &bytes);
                         crate::engine::write_responses(&sink.writer, responses);
+                        let _ = sink.chan.send(InvokeResponseBody::Raw(dom_bytes));
+                        continue;
                     }
                 }
                 let _ = sink.chan.send(InvokeResponseBody::Raw(bytes));

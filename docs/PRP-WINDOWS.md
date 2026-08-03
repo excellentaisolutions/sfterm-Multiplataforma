@@ -112,10 +112,10 @@ Contratos iniciales:
 |---|---|---|
 | 0. Baseline y CI | Completada | Frontend y backend nativo verdes en Windows/macOS |
 | 1. Frontera de plataforma | Completada | Capacidades explícitas, adaptadores aislados y gate de neutralidad verde en ambos sistemas |
-| 2. Terminal Windows | En curso | ConPTY 5.1/7, Claude, Codex, Vim, OSC, resize, Unicode, paste, Ctrl+C/Break e IME automatizado validados; IME manual y renderer pendientes |
+| 2. Terminal Windows | Completada | ConPTY 5.1/7, Claude, Codex, Vim, OSC, control y Unicode verdes; composición real del layout es-ES y fanout byte a byte entre renderers verificados |
 | 3. Daemon persistente | Completada | TUI/replay sobreviven reconexión y rebuild; cliente lento, cierre del árbol y aislamiento entre configs verdes |
 | 4. Navegador WebView2 | Completada | Host aislado y gate completo verificados E2E contra WebView2 real |
-| 5. Filesystem y paths | En curso | AppData + migración + rutas drive/UNC + temp nativo |
+| 5. Filesystem y paths | Completada | Drive/UNC/Unicode, AppData y migración verdes; ShellExecuteW, IFileOperation recuperable y guardas contra junctions verificados |
 | 6. Atajos, ventana y voz | Pendiente | UX Windows y captura WASAPI |
 | 7. Distribución | Pendiente | NSIS/MSI firmados y updater |
 | 8. Hardening y release | Pendiente | Matriz E2E y auditoría de seguridad |
@@ -479,6 +479,33 @@ Contratos iniciales:
   el perfil WebView2 común separado del perfil privilegiado de Tauri.
 - Windows anuncia ahora `browser_host` y `window_capture` disponibles. Voz
   permanece deshabilitada explícitamente hasta la Fase 6.
+
+#### 2026-08-03 — Cierre de Fases 2 y 5
+
+- La entrada real se condujo sobre la aplicación Tauri/WebView2 y ConPTY en
+  una raíz de configuración aislada. El layout Windows `es-ES` instalado
+  compuso mediante eventos físicos la tecla muerta `´` seguida de `a`; el
+  comando y la salida conservaron exactamente `IME_REAL_á_OK`, sin preedición
+  filtrada ni duplicación. No se instaló ni modificó ningún idioma del sistema.
+- El output del PTY pasa por un único `fanout_chunk`: el motor propio consume
+  el mismo slice que se entrega sin normalización al renderer DOM. Un test con
+  ANSI, salto CRLF y `ñ_界` exige tanto identidad byte a byte como contenido
+  idéntico en el grid, para los caminos local y daemon.
+- Windows abre URLs con `ShellExecuteW` y mueve archivos o directorios a la
+  Papelera mediante `IFileOperation` en un apartment COM STA dedicado. El path
+  nunca se interpola en un comando shell y las operaciones fuerzan reciclaje
+  recuperable, fallo temprano y ausencia de UI bloqueante.
+- Las guardas de Papelera rechazan la raíz, elementos externos y escapes a
+  través de reparse points. El banco Windows crea un junction NTFS hacia un
+  directorio externo, demuestra que su contenido no puede borrarse y que el
+  enlace mismo sí puede tratarse sin seguir el destino. El E2E ignorado se
+  ejecutó expresamente contra la Papelera real para un archivo y un directorio.
+- Rutas con espacios y Unicode quedaron añadidas a la matriz drive/UNC. Los
+  clientes Python del gate y Nervio fuerzan UTF-8 para JSON, eventos, cursores
+  y stdout; esto corrige el fallo reproducido en Windows cuando una pantalla
+  de terminal contenía `ñ_界`.
+- Con esta evidencia se cumplen los criterios restantes de ambas fases. Las
+  Fases 2 y 5 pasan a completadas; la siguiente fase funcional es la Fase 6.
 
 ## 6. Fases de implementación
 
